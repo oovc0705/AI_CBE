@@ -33,7 +33,7 @@ export default function ProfilePage() {
     setError(null);
     setSuccess(null);
     try {
-      const updated = updateLocalProfile({
+      const updated = await updateLocalProfile({
         firstName: firstName.trim() || undefined,
         lastName: lastName.trim() || undefined,
         phone: phone.trim() || undefined,

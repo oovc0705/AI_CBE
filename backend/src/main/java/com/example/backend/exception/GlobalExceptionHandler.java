@@ -4,6 +4,7 @@ import com.example.backend.common.Result;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -38,6 +39,14 @@ public class GlobalExceptionHandler {
     public Result<Void> handleDuplicate(DuplicateResourceException e) {
         log.warn("Resource conflict: {}", e.getMessage());
         return Result.error(409, e.getMessage());
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Result<Void> handleUnreadable(HttpMessageNotReadableException e) {
+        // 不回显原始报文，避免把客户端输入反射回去
+        log.warn("Malformed request body: {}", e.getClass().getSimpleName());
+        return Result.error(400, "请求体格式错误");
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

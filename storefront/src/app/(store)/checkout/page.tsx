@@ -9,6 +9,7 @@ import { getCart, clearCart, removeFromCart, type CartItem } from '@/lib/cart';
 import { PAYMENT_METHODS, type PaymentMethodCode } from '@/lib/payment-methods';
 import { trackEvent } from '@/lib/analytics';
 import { useAuth } from '../AuthProvider';
+import { authHeaders } from '@/lib/auth';
 
 const BLUR_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mO8cOHCfwAH+gNJ3XpQNAAAAABJRU5ErkJggg==';
@@ -113,7 +114,7 @@ export default function CheckoutPage() {
       // 1) 创建订单（待支付）
       const createRes = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
           customerEmail: email.trim(),
@@ -151,7 +152,7 @@ export default function CheckoutPage() {
       // 2) 模拟支付（选择渠道 -> 后端写流水 + 标记 PAID）
       const payRes = await fetch(`/api/orders/${orderId}/pay`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ paymentMethod }),
       });
       let payJson: { code?: number; message?: string } = {};

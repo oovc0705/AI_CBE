@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { trackEvent } from '@/lib/analytics';
 import { getPaymentMethod } from '@/lib/payment-methods';
 import { appendUserOrder, type OrderSummary } from '@/lib/user-store';
+import { authHeaders } from '@/lib/auth';
 
 interface OrderItemData {
   id: number;
@@ -54,7 +55,7 @@ function OrderResultContent() {
   useEffect(() => {
     if (!orderId) { setLoading(false); return; }
 
-    fetch(`/api/orders/${orderId}`)
+    fetch(`/api/orders/${orderId}`, { headers: authHeaders() })
       .then((res) => res.json())
       .then((json) => {
         if (json.code === 200 && json.data) {

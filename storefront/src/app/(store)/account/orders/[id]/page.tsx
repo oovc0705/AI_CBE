@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../../AuthProvider';
+import { authHeaders } from '@/lib/auth';
 
 const BLUR_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mO8cOHCfwAH+gNJ3XpQNAAAAABJRU5ErkJggg==';
@@ -122,12 +123,12 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     if (!orderId) return;
-    fetch(`/api/orders/${orderId}`)
+    fetch(`/api/orders/${orderId}`, { headers: authHeaders() })
       .then((res) => res.json())
       .then((json) => { if (json.code === 200) setOrder(json.data); })
       .catch(() => {})
       .finally(() => setLoading(false));
-    fetch(`/api/orders/${orderId}/support-requests`)
+    fetch(`/api/orders/${orderId}/support-requests`, { headers: authHeaders() })
       .then((res) => res.json())
       .then((json) => { if (json.code === 200) setRequests(json.data || []); })
       .catch(() => {});
@@ -146,7 +147,7 @@ export default function OrderDetailPage() {
     try {
       const res = await fetch(`/api/orders/${orderId}/support-requests`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ type: formType, message: formMessage }),
       });
       const json = await res.json();

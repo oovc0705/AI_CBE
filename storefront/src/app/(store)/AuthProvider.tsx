@@ -6,6 +6,7 @@ import {
   login as authLogin,
   logout as authLogout,
   onAuthChange,
+  refreshCurrentUser,
   register as authRegister,
   updateCurrentUser as authUpdate,
   type LoginInput,
@@ -30,7 +31,7 @@ interface AuthContextValue {
   doLogin: (input: LoginInput) => Promise<AuthResult>;
   doRegister: (input: RegisterInput) => Promise<AuthResult>;
   doLogout: () => void;
-  updateProfile: (patch: Partial<Pick<UserProfile, 'firstName' | 'lastName' | 'phone' | 'avatarUrl' | 'language' | 'currency' | 'memberLevel' | 'points' | 'preferences'>>) => UserProfile | null;
+  updateProfile: (patch: Partial<Pick<UserProfile, 'firstName' | 'lastName' | 'phone' | 'avatarUrl' | 'language' | 'currency' | 'memberLevel' | 'points' | 'preferences'>>) => Promise<UserProfile | null>;
   /** Helpers */
   isAuthenticated: boolean;
   /**
@@ -48,10 +49,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [modalMode, setModalMode] = useState<AuthMode>('login');
   const [pendingResolve, setPendingResolve] = useState<((ok: boolean) => void) | null>(null);
 
-  // 初始化：读取 localStorage
+  // 初始化：先读本地缓存，再用 token 向后端校验/刷新（失效会自动登出）
   useEffect(() => {
     setUser(getCurrentUser());
     const off = onAuthChange(() => setUser(getCurrentUser()));
+    void refreshCurrentUser();
     return off;
   }, []);
 
@@ -102,8 +104,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateProfile = useCallback(
-    (patch: Partial<Pick<UserProfile, 'firstName' | 'lastName' | 'phone' | 'avatarUrl' | 'language' | 'currency'>>) => {
-      const updated = authUpdate(patch);
+    async (patch: Partial<Pick<UserProfile, 'firstName' | 'lastName' | 'phone' | 'avatarUrl' | 'language' | 'currency'>>) => {
+      const updated = await authUpdate(patch);
       if (updated) setUser(updated);
       return updated;
     },

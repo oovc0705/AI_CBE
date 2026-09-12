@@ -59,12 +59,27 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
-    public Result<SimpleOrder> getById(@PathVariable Long id) {
+    public Result<SimpleOrder> getById(@PathVariable Long id, Authentication authentication) {
         SimpleOrder order = orderService.getById(id);
-        if (order == null) {
+        if (!canAccess(authentication, order)) {
             return Result.error(404, "订单不存在");
         }
         return Result.success(order);
+    }
+
+    /**
+     * 订单归属校验：管理角色可访问任意订单，普通用户只能访问自己的。
+     * 校验失败统一按「不存在」处理，避免暴露订单 ID 是否存在。
+     */
+    private boolean canAccess(Authentication authentication, SimpleOrder order) {
+        if (order == null) {
+            return false;
+        }
+        if (isPrivileged(authentication)) {
+            return true;
+        }
+        Long uid = authentication == null ? null : AuthUser.resolveId(authentication.getPrincipal());
+        return uid != null && uid.equals(order.getUserId());
     }
 
     @GetMapping
@@ -113,8 +128,12 @@ public class OrderController {
      * 不调用真实网关：直接写流水 + 标记 PAID + 生成交易号
      */
     @PostMapping("/{id}/pay")
-    public Result<SimpleOrder> pay(@PathVariable Long id, @RequestBody(required = false) PayRequest body) {
+    public Result<SimpleOrder> pay(@PathVariable Long id, @RequestBody(required = false) PayRequest body,
+                                   Authentication authentication) {
         try {
+            if (!canAccess(authentication, orderService.getById(id))) {
+                return Result.error(404, "订单不存在");
+            }
             String method = body == null ? null : body.getPaymentMethod();
             SimpleOrder updated = orderService.payOrder(id, method);
             return Result.success(updated);
@@ -190,7 +209,10 @@ public class OrderController {
 
     /** 订单支付流水 */
     @GetMapping("/{id}/payments")
-    public Result<List<Payment>> listPayments(@PathVariable Long id) {
+    public Result<List<Payment>> listPayments(@PathVariable Long id, Authentication authentication) {
+        if (!canAccess(authentication, orderService.getById(id))) {
+            return Result.success(List.of());
+        }
         return Result.success(orderService.listPayments(id));
     }
 
@@ -215,14 +237,17 @@ public class OrderController {
     @PostMapping("/{id}/support-requests")
     public Result<SupportRequest> createSupportRequest(
             @PathVariable Long id,
-            @RequestBody SupportRequestBody body) {
+            @RequestBody SupportRequestBody body,
+            Authentication authentication) {
         SimpleOrder order = orderService.getById(id);
-        if (order == null) {
+        if (!canAccess(authentication, order)) {
             return Result.error(404, "Order not found");
         }
+        // 归属人只取自 token，不接受请求体里的 userId
+        Long requesterId = authentication == null ? null : AuthUser.resolveId(authentication.getPrincipal());
         SupportRequest req = supportRequestService.create(
                 id,
-                body.getUserId(),
+                requesterId,
                 body.getType(),
                 body.getSubject(),
                 body.getMessage(),
@@ -233,13 +258,15 @@ public class OrderController {
     }
 
     @GetMapping("/{id}/support-requests")
-    public Result<List<SupportRequest>> listSupportRequests(@PathVariable Long id) {
+    public Result<List<SupportRequest>> listSupportRequests(@PathVariable Long id, Authentication authentication) {
+        if (!canAccess(authentication, orderService.getById(id))) {
+            return Result.success(List.of());
+        }
         return Result.success(supportRequestService.listByOrderId(id));
     }
 
     @Data
     public static class SupportRequestBody {
-        private Long userId;
         private String type;
         private String subject;
         private String message;

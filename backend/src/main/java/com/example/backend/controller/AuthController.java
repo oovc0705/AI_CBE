@@ -7,7 +7,9 @@ import com.example.backend.dto.LoginResult;
 import com.example.backend.entity.User;
 import com.example.backend.entity.UserRole;
 import com.example.backend.mapper.UserMapper;
+import com.example.backend.security.LoginRateLimiter;
 import com.example.backend.util.JwtUtil;
+import com.example.backend.util.RequestUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,42 +21,23 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-
 @RestController
 @RequiredArgsConstructor
 public class AuthController {
 
     private final JwtUtil jwtUtil;
     private final UserMapper userMapper;
+    private final LoginRateLimiter rateLimiter;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /** 开发环境演示口令兜底，默认关闭；生产严禁开启 */
     @Value("${app.dev-login-fallback:false}")
     private boolean devLoginFallback;
 
-    private static final int LOGIN_WINDOW_MS = 60_000;
-    private static final int LOGIN_MAX_ATTEMPTS = 10;
-    private final Map<String, LoginAttempt> loginAttempts = new ConcurrentHashMap<>();
-
-    private record LoginAttempt(AtomicInteger count, long windowStart) {}
-
-    private boolean isRateLimited(String ip) {
-        long now = System.currentTimeMillis();
-        LoginAttempt attempt = loginAttempts.compute(ip, (key, existing) -> {
-            if (existing == null || now - existing.windowStart() > LOGIN_WINDOW_MS) {
-                return new LoginAttempt(new AtomicInteger(0), now);
-            }
-            return existing;
-        });
-        return attempt.count().incrementAndGet() > LOGIN_MAX_ATTEMPTS;
-    }
-
     @PostMapping("/api/login/account")
     public ResponseEntity<Result<LoginResult>> login(@RequestBody LoginRequest req, HttpServletRequest request) {
-        if (isRateLimited(clientIp(request))) {
+        String limitKey = "rate:login:admin:" + clientIp(request);
+        if (rateLimiter.isLimited(limitKey)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body(Result.error(429, "登录尝试过于频繁，请稍后再试"));
         }
@@ -93,6 +76,7 @@ public class AuthController {
         // B 端管理员角色映射为前端认识的值
         String frontendRole = mapRoleForFrontend(role);
 
+        rateLimiter.reset(limitKey);
         String token = jwtUtil.generateToken(userId, username, role);
         LoginResult result = new LoginResult(
                 "ok",
@@ -152,11 +136,7 @@ public class AuthController {
     }
 
     private String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
+        return RequestUtils.clientIp(request);
     }
 
     @PostMapping("/api/login/outLogin")

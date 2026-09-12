@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -24,13 +25,39 @@ public class SupportRequestService {
         SupportRequest req = new SupportRequest();
         req.setOrderId(orderId);
         req.setUserId(userId);
-        req.setType(type != null ? type : "GENERAL");
+        req.setType(normalizeType(type));
         req.setSubject(subject != null ? subject : "");
         req.setMessage(message != null ? message : "");
-        req.setPriority(priority != null ? priority : "NORMAL");
+        req.setPriority(normalizePriority(priority));
         req.setContactEmail(contactEmail);
         mapper.insert(req);
         return req;
+    }
+
+    /** 与 support_requests_type_check 约束保持一致，非法值应在入口就拒绝（400）而不是撞库（500） */
+    private static final Set<String> ALLOWED_TYPES = Set.of("GENERAL", "REFUND", "EXCHANGE", "COMPLAINT");
+    private static final Set<String> ALLOWED_PRIORITIES = Set.of("LOW", "NORMAL", "HIGH", "URGENT");
+
+    private String normalizeType(String type) {
+        if (type == null || type.isBlank()) {
+            return "GENERAL";
+        }
+        String upper = type.trim().toUpperCase();
+        if (!ALLOWED_TYPES.contains(upper)) {
+            throw new IllegalArgumentException("无效的工单类型: " + type);
+        }
+        return upper;
+    }
+
+    private String normalizePriority(String priority) {
+        if (priority == null || priority.isBlank()) {
+            return "NORMAL";
+        }
+        String upper = priority.trim().toUpperCase();
+        if (!ALLOWED_PRIORITIES.contains(upper)) {
+            throw new IllegalArgumentException("无效的优先级: " + priority);
+        }
+        return upper;
     }
 
     public SupportRequest create(Long orderId, String type, String message) {

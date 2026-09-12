@@ -1,20 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useAuth, type AuthMode } from './AuthProvider';
 import {
   AUTH_ERROR_MESSAGES,
   isValidEmail,
-  sendVerificationCode,
   type AuthError,
 } from '@/lib/auth';
 
-const COUNTDOWN_SECONDS = 30;
+const MIN_PASSWORD_LENGTH = 8;
 
 interface FieldState {
   email: string;
-  code: string;
   password: string;
   firstName: string;
   lastName: string;
@@ -23,17 +21,11 @@ interface FieldState {
 
 const EMPTY_FIELDS: FieldState = {
   email: '',
-  code: '',
   password: '',
   firstName: '',
   lastName: '',
   agreeTerms: false,
 };
-
-function formatCooldown(s: number) {
-  if (s <= 0) return '0s';
-  return `${s}s`;
-}
 
 export default function AuthModal() {
   const t = useTranslations('auth');
@@ -43,12 +35,7 @@ export default function AuthModal() {
   const [error, setError] = useState<AuthError | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
-
-  // 验证码倒计时
-  const [cooldown, setCooldown] = useState(0);
-  const [codeSending, setCodeSending] = useState(false);
-  const [codeHint, setCodeHint] = useState<string | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [termsHint, setTermsHint] = useState(false);
 
   // 切回时清空
   useEffect(() => {
@@ -57,12 +44,7 @@ export default function AuthModal() {
       setError(null);
       setSubmitting(false);
       setShowPwd(false);
-      setCodeHint(null);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      setCooldown(0);
+      setTermsHint(false);
     }
   }, [modalOpen]);
 
@@ -70,95 +52,37 @@ export default function AuthModal() {
     if (modalOpen) setError(null);
   }, [modalMode, modalOpen]);
 
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
-
-  const startCooldown = useCallback((seconds: number) => {
-    setCooldown(seconds);
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setCooldown((s) => {
-        if (s <= 1) {
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-          }
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
-  }, []);
-
   const updateField = <K extends keyof FieldState>(k: K, v: FieldState[K]) => {
     setFields((f) => ({ ...f, [k]: v }));
   };
-
-  const handleSendCode = useCallback(async () => {
-    setError(null);
-    setCodeHint(null);
-    if (!isValidEmail(fields.email)) {
-      setError('email_invalid');
-      return;
-    }
-    setCodeSending(true);
-    // 模拟一点点网络延迟，更接近真实体验
-    await new Promise((r) => setTimeout(r, 400));
-    const result = sendVerificationCode(fields.email, 'register');
-    setCodeSending(false);
-    if (!result.ok) {
-      setError(result.error || 'network_error');
-      if (result.error === 'rate_limited' && result.cooldownSeconds) {
-        startCooldown(result.cooldownSeconds);
-      }
-      return;
-    }
-    startCooldown(COUNTDOWN_SECONDS);
-    if (result.devCode) {
-      setCodeHint(`Demo code: ${result.devCode} (also printed in the browser console)`);
-    }
-  }, [fields.email, startCooldown]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (submitting) return;
       setError(null);
+      setTermsHint(false);
 
       if (!isValidEmail(fields.email)) {
         setError('email_invalid');
         return;
       }
-      if (!fields.password || fields.password.length < 6) {
+      if (!fields.password || fields.password.length < MIN_PASSWORD_LENGTH) {
         setError('password_too_short');
         return;
       }
-      if (modalMode === 'register') {
-        if (!fields.code.trim()) {
-          setError('code_required');
-          return;
-        }
-        if (!fields.agreeTerms) {
-          setError('network_error'); // 复用为通用错误
-          setError(null);
-          setCodeHint(t('agreeTerms'));
-          return;
-        }
+      if (modalMode === 'register' && !fields.agreeTerms) {
+        setTermsHint(true);
+        return;
       }
 
       setSubmitting(true);
-      // 模拟网络延迟
-      await new Promise((r) => setTimeout(r, 300));
       const result =
         modalMode === 'login'
           ? await doLogin({ email: fields.email, password: fields.password })
           : await doRegister({
               email: fields.email,
               password: fields.password,
-              code: fields.code,
               firstName: fields.firstName,
               lastName: fields.lastName,
             });
@@ -175,13 +99,13 @@ export default function AuthModal() {
 
   // ─── 校验状态
   const emailValid = isValidEmail(fields.email);
-  const pwdValid = fields.password.length === 0 || fields.password.length >= 6;
+  const pwdValid = fields.password.length === 0 || fields.password.length >= MIN_PASSWORD_LENGTH;
   const canSubmit = useMemo(() => {
     if (!emailValid) return false;
-    if (fields.password.length < 6) return false;
-    if (modalMode === 'register' && (!fields.code.trim() || !fields.agreeTerms)) return false;
+    if (fields.password.length < MIN_PASSWORD_LENGTH) return false;
+    if (modalMode === 'register' && !fields.agreeTerms) return false;
     return true;
-  }, [emailValid, fields.password, fields.code, fields.agreeTerms, modalMode]);
+  }, [emailValid, fields.password, fields.agreeTerms, modalMode]);
 
   // ESC 关闭
   useEffect(() => {
@@ -322,45 +246,6 @@ export default function AuthModal() {
             )}
           </div>
 
-          {/* Verification code (register only) */}
-          {modalMode === 'register' && (
-            <div>
-              <label htmlFor="code" className="block text-caption font-medium text-gray-700 mb-1.5">
-                {t('verificationCode')}
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="code"
-                  type="text"
-                  inputMode="numeric"
-                  pattern="\d*"
-                  maxLength={6}
-                  autoComplete="one-time-code"
-                  value={fields.code}
-                  onChange={(e) => updateField('code', e.target.value.replace(/\D/g, ''))}
-                  placeholder={t('codeHint', { count: 6 })}
-                  className="input-field flex-1 tracking-widest font-mono"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={handleSendCode}
-                  disabled={!emailValid || cooldown > 0 || codeSending}
-                  className="shrink-0 px-3 py-2 rounded-[var(--radius-btn)] border-2 border-brand text-brand text-caption font-semibold hover:bg-brand hover:text-white transition-fast active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-                >
-                  {codeSending
-                    ? t('sendingCode')
-                    : cooldown > 0
-                      ? t('resendCode', { time: formatCooldown(cooldown) })
-                      : t('sendCode')}
-                </button>
-              </div>
-              {codeHint && (
-                <p className="mt-1.5 text-caption text-info">{codeHint}</p>
-              )}
-            </div>
-          )}
-
           {/* Password */}
           <div>
             <label htmlFor="password" className="block text-caption font-medium text-gray-700 mb-1.5">
@@ -403,20 +288,25 @@ export default function AuthModal() {
 
           {/* Agree terms (register only) */}
           {modalMode === 'register' && (
-            <label className="flex items-start gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={fields.agreeTerms}
-                onChange={(e) => {
-                  updateField('agreeTerms', e.target.checked);
-                  if (e.target.checked) setCodeHint(null);
-                }}
-                className="mt-0.5 w-4 h-4 accent-brand"
-              />
-              <span className="text-caption text-gray-600">
-                {t('agreeTerms')}
-              </span>
-            </label>
+            <div>
+              <label className="flex items-start gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={fields.agreeTerms}
+                  onChange={(e) => {
+                    updateField('agreeTerms', e.target.checked);
+                    if (e.target.checked) setTermsHint(false);
+                  }}
+                  className="mt-0.5 w-4 h-4 accent-brand"
+                />
+                <span className="text-caption text-gray-600">
+                  {t('agreeTerms')}
+                </span>
+              </label>
+              {termsHint && (
+                <p className="mt-1 text-caption text-error">{t('agreeTerms')}</p>
+              )}
+            </div>
           )}
 
           {/* Error */}

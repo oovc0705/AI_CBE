@@ -15,12 +15,13 @@ export default function LanguageSelector() {
     setLanguage(stored);
   }, []);
 
-  const handleChange = (newLang: string) => {
+  const handleChange = async (newLang: string) => {
     const locale = newLang as Locale;
     setLanguage(locale);
     localStorage.setItem(STORAGE_KEY, locale);
     if (user) {
-      updateProfile({ language: locale });
+      // 等后端持久化完成再刷新，否则 reload 会中断请求
+      await updateProfile({ language: locale });
     }
     window.dispatchEvent(new CustomEvent('language-changed', { detail: locale }));
     window.location.reload();

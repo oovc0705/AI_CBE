@@ -260,17 +260,12 @@
     "register": "注册",
     "createAccountBtn": "创建账户",
     "creatingAccount": "创建账户中...",
-    "verificationCode": "验证码",
-    "sendCode": "发送验证码",
-    "sendingCode": "发送中...",
-    "resendCode": "重新发送 {time}",
     "agreeTerms": "我同意服务条款和隐私政策。",
     "newHere": "新用户？",
-    "demoInfo": "演示模式：注册账户存储在浏览器本地（localStorage）。验证码为模拟生成，会显示在控制台中。",
+    "demoInfo": "账户存储在服务端（口令经哈希保存）。登录状态以令牌保存在本机，共享设备使用后请退出登录。",
     "hidePassword": "隐藏密码",
     "showPassword": "显示密码",
-    "passwordHint": "至少6个字符",
-    "codeHint": "{count}位数字"
+    "passwordHint": "至少8个字符"
   },
   "currency": {
     "USD": "美元 ($)",

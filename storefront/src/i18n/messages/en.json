@@ -260,17 +260,12 @@
     "register": "Register",
     "createAccountBtn": "Create account",
     "creatingAccount": "Creating account...",
-    "verificationCode": "Verification code",
-    "sendCode": "Send code",
-    "sendingCode": "Sending...",
-    "resendCode": "Resend {time}",
     "agreeTerms": "I agree to the Terms of Service and Privacy Policy.",
     "newHere": "New here?",
-    "demoInfo": "Demo: registration stores accounts in your browser (localStorage). Verification codes are simulated and shown in the console.",
+    "demoInfo": "Accounts are stored on the server (passwords hashed). Your session is kept with a token on this device; sign out on shared devices.",
     "hidePassword": "Hide password",
     "showPassword": "Show password",
-    "passwordHint": "At least 6 characters",
-    "codeHint": "{count} digits"
+    "passwordHint": "At least 8 characters"
   },
   "currency": {
     "USD": "USD ($)",

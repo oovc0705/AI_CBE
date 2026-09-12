@@ -90,14 +90,12 @@ cd ai-service && uvicorn main:app --port 8000
 - AI 客服的 `query_orders` 工具会注入 `userId`，**此前该参数被 Java 端直接忽略**（等于隔离失效），且 `customer.py` 不透传 token；两处均已修；
 - ⚠️ **行为变更**：`storefront/src/app/(store)/account/orders/page.tsx` 原先不带 userId 调用列表接口，实际展示的是**全站订单**；现在未认证请求返回空，该页在 C 端账户体系落地前会显示为空列表。这是安全上的正确结果（fail-closed），不要为了「让页面有数据」而放开过滤。
 
-### 4.5 Storefront 的 C 端账户是**纯前端模拟**（重要架构事实）
+### 4.5 C 端账户体系（2026-09-12 第二轮已落地）
 
-`storefront/src/lib/auth.ts`：注册/登录/验证码/会话**全部写在 localStorage**，密码明文存储，后端没有对应账户体系。由此带来两个遗留问题（见审查报告 P1-6、P1-9）：
-
-- `/api/customer/chat` 的 `user_id` 完全由客户端自报，无法在服务端校验；
-- 「按 user_id 隔离订单」在服务端只能做参数过滤，不能做身份绑定。
-
-**要真正做到 C 端隔离，必须先给 Storefront 建服务端账户体系（注册/登录发 JWT），再把 user_id 从 token 解出**。这是架构级工作，不要试图用正则或前端校验绕过。
+- **现状**：注册/登录走后端 `/api/storefront/auth/*`，口令 bcrypt 存 `users` 表（`role=CUSTOMER`），签发与 B 端同源的 JWT；前端 `lib/auth.ts` 只保存 token 与档案，**不再保存明文口令**；
+- **身份使用规则**：一切需要归属的接口（订单列表/详情/支付/工单、个人资料）只从 token 取身份，前端传 `userId` 一律忽略；管理角色（ADMIN/OPERATOR/VIEWER）可跨用户查询；
+- **仍缺失（上线前需产品决策）**：邮箱验证、忘记密码流程；token 存 localStorage，因此前端任何 XSS 都会泄露会话——渲染外部文本必须走已转义组件（§6 Storefront 约定）；
+- **历史包袱**：`user-store.ts` 的购物车/地址/本地订单快照仍按"设备 + 用户 ID"存 localStorage，跨设备不同步；登录时会把访客数据合并进账户（`mergeGuestIntoUser`）。
 
 ### 4.6 AI 服务侧约定（未变更）
 
@@ -130,12 +128,65 @@ cd ai-service && uvicorn main:app --port 8000
 - **AI 服务**：新增工具走 `tools/base.py` 注册 + 对应 Agent 的 `ALLOWED_TOOLS` 白名单；写操作必须 `require_confirm=True`；**永远不要给客服 Agent 加写工具**；不引入 LangGraph；工具层鉴权头必须**按请求**取（`_auth_headers()`），绝不要固化到复用的 `AsyncClient` 上（见 P0-5）；
 - **提交前**：`.env` 不得提交（已在 `.gitignore`）；`.dbg/`、`.trae/`、`.audit-tmp/` 已忽略；暂存后用 `git diff --cached --name-only | grep -E '\.env$|\.pem$|\.key$'` 复查一遍有无密钥文件混入。
 
+## 8. 第二轮实现与验证（2026-09-12 晚，"上线前仍需做的"全部落地）
+
+### 8.1 C 端账户体系（取代 localStorage 明文口令）
+
+- **后端**：新增 `/api/storefront/auth/register|login|me`（`StorefrontAuthController` + `CustomerAuthService`），口令 bcrypt 存 `users` 表，签发与 B 端同源的 JWT（`role=customer`）；注册校验邮箱格式/密码 8–72 位；重复邮箱 409、弱密码 400、凭证错误统一 401（不泄露邮箱是否存在）；
+- **`/api/profile` 越权修复**：原先身份取自 `?userId=` 查询参数，任何登录用户可读写他人资料；现只从 token 取身份，参数被忽略；
+- **订单归属校验**：`GET /api/orders/{id}`、`/{id}/payments`、`/{id}/support-requests`、`POST /{id}/pay`、`POST /{id}/support-requests` 全部加 `canAccess`（管理角色放行，普通用户仅限本人），不通过统一按 404/空列表处理，避免 ID 枚举探针；工单的 `userId` 也只取自 token；
+- **Storefront**：`lib/auth.ts` 重写为后端 JWT 实现（token 存 `storefront-token`，档案存 `storefront-current-user`，**不再存明文口令**）；注册表单移除"邮箱验证码"（后端无邮件服务，原验证码是纯装饰）；结账/订单页/订单详情/售后/AI 客服请求统一带 `Authorization`；删除无消费方且使用越权模式的 `lib/profile-api.ts`；i18n 中"账户存 localStorage/验证码模拟"的过时文案与失效键已清理；
+- **验证**：浏览器实测注册→登录→下单→「我的订单」只显示本人订单；`/me` 无 token 401；顾客 token 访问 `/api/admin/**` 403；他人订单 404。
+
+### 8.2 登录限流改 Redis
+
+`security/LoginRateLimiter`：Redis `INCR + EXPIRE`，key 形如 `rate:login:customer:<ip>`，多副本共享窗口；Redis 不可用时降级为单实例内存计数并记 warn。B 端登录、C 端登录、C 端注册分别用独立 key；登录成功后清计数。阈值可配：`LOGIN_RATE_LIMIT_MAX_ATTEMPTS` / `LOGIN_RATE_LIMIT_WINDOW_SECONDS`。
+**验证**：连续错误口令第 9 次起 429；`redis-cli KEYS 'rate:*'` 可见计数键（验证后已清理）。
+
+### 8.3 生产配置基线
+
+新增 `backend/.env.production.example`：`DEV_LOGIN_FALLBACK=false`、`API_DOCS_ENABLED=false`、独立 `JWT_SECRET`、CORS 收敛、DB 口令走密钥管理，并附 6 条上线自检清单。
+**验证**（以 `--app.dev-login-fallback=false --springdoc.*=false` 启动）：`admin/ant.design` 被拒（body code 401）；匿名访问 `/actuator/prometheus`、`/swagger-ui.html`、`/v3/api-docs` 均 401；`/actuator/health` 200 且不含组件详情；C 端登录与公开商品浏览不受影响。
+> 注意：B 端登录失败返回 **HTTP 200 + body code=401**（既有 `Result` 信封行为，未改动以免破坏 Admin 前端错误处理），监控不要只看状态码判断认证失败。
+
+### 8.4 异常语义补强
+
+- `HttpMessageNotReadableException` → 400（畸形/非法编码请求体不再污染 5xx）；
+- 工单 `type`/`priority` 在入口校验白名单（与 DB CHECK 约束一致），非法值 400 而非撞库 500。
+
+### 8.5 AI 服务验证
+
+- 新建 `ai-service/.venv`（Python 3.12，原 `venv` 是 3.9 且为空壳）；安装**轻量依赖集**（fastapi/uvicorn/httpx/litellm/sqlalchemy/asyncpg/redis…），**未装** chromadb 与 sentence-transformers（二者在代码中为惰性导入，RAG 功能调用时才会需要，含 torch 约 2.5GB）；
+- 服务可正常启动（`/health` 200）；
+- **工具层端到端 PASS**（`auth_token_context` 置顾客 token 后调 `query_orders`）：伪造 `user_id=999` 被服务端忽略、只返回本人 1 条订单；无 token 返回 0 条；
+- **未完成**：真实 LLM 对话无法验证——`.env` 中 StepFun key 返回 `you have no active step plan subscription`。需要有效订阅后复测 Copilot/客服全链路（含 RAG 时需装 chromadb + embedding 模型）。
+
+### 8.6 浏览器实测（Storefront XSS 修复）
+
+- **JSON-LD**：在真实 DOM 中做正反对照——未转义写法会解析出 `<img>` 并触发 `onerror`（证明漏洞真实存在），修复写法（`JSON.stringify(...).replace(/</g,'\u003c')`）解析 0 个危险元素、无原始 `</script>`；
+- **MarkdownText**：7 个攻击载荷（无引号 `onerror`、`<script>`、`<svg onload>`、`<iframe src=javascript:>`、markdown `javascript:`/`data:` 链接、大小写混写协议）经组件同款逻辑渲染后注入 DOM，**全部为惰性文本**：0 危险元素、0 事件属性、0 危险 href，无 handler 触发；正常 markdown 结构（标题/加粗/链接）保留；
+- 未覆盖：AI 客服真实会话中的 Markdown 渲染（依赖 LLM，见 8.5）。
+
+### 8.7 回归与清理
+
+- `mvnw test` 24 项全绿；`docs/admin-test.ps1` 第三轮：113 项 / 94 通过 / 16 个 409（种子数据冲突，语义正确）/ 3 个 AI 服务未启动，**无新增失败**；
+- Storefront `tsc --noEmit` 通过；
+- 已清理：全部测试进程、`.audit-tmp/`、Redis 限流键、本轮创建的测试账户与订单（库恢复 8 用户 / 6 订单）、ai-service `__pycache__`；postgres/redis 容器与 `ai-service/.venv` **保留**（后者是运行 AI 服务所需）。
+
+### 8.8 仍未完成（按优先级）
+
+1. **LLM 全链路**：需有效模型订阅（StepFun 当前无 active subscription）；RAG 还需装 chromadb + BGE-m3；
+2. **Admin 后台浏览器实测**：本轮只做了接口级验证，Admin 前端（含 openapi 生成的 services）未跑 UI；
+3. **C 端账户的体验项**：忘记密码/邮箱验证仍未实现（注册即可用，无验证环节）——上线前需产品决策；
+4. 多副本部署下限流已共享 Redis，但**会话/订单页的本地缓存**（user-store 的 localStorage）仍按设备隔离，跨设备不同步（设计如此，需知晓）。
+
 ## 7. 提交记录（本轮）
 
 | commit | 内容 |
 | --- | --- |
 | 1（初始导入） | 审查前的四端代码基线快照，`storefront` 此时仍是 submodule 指针；`.dbg/`、`.trae/` 已先移出暂存区，未进入历史 |
-| 2（审查修复） | 本轮全部 P0/P1/P2 修复 + `agent.md`；同时把 `storefront/` 平铺纳入根仓（解除 gitlink，91 个文件入库） |
+| 2（审查修复） | 第一轮全部 P0/P1/P2 修复 + `agent.md`；同时把 `storefront/` 平铺纳入根仓（解除 gitlink，91 个文件入库） |
+| 3（上线前置） | 第二轮实现：C 端账户体系（后端接口 + Storefront 接入）、订单/资料归属校验、Redis 限流、生产配置基线、异常语义补强、i18n 文案修正 |
 
 `.gitignore` 新增：`.dbg/`、`.trae/`、`.audit-tmp/`（本地调试与审查临时产物）。
 `.env` 系列仍按原规则忽略；`backend/.env` 含本地 `JWT_SECRET` 与数据库口令，**不得提交**。
@@ -219,16 +270,16 @@ cd ai-service && uvicorn main:app --port 8000
 
 ### 发布就绪状态
 
-- **结论：修复下列生产配置项后可发布（后端）；C 端与 AI 服务仍有前置工作，整体尚不建议对外上线。**
-  - **P0×5、P1×9、P2×9 全部已修复**，其中后端安全面全部通过**运行时验证**，24 项单元测试全绿，113 项联调无新增失败（原 16 个 500 变为语义正确的 409）；
-  - 仍阻塞「对外上线」的不是代码缺陷，而是**未完成的验证与架构工作**（见下）。
+- **结论：后端与 C 端已具备上线条件（按 `backend/.env.production.example` 基线配置并复跑自检清单）；AI 服务与 Admin 后台仍有未验证面，整体上线前需完成下列第 1、2 项。**
+  - 两轮共修复 **P0×5、P1×9、P2×9**，并额外落地 C 端账户体系、订单/资料归属校验、Redis 限流、生产配置基线；
+  - 验证覆盖：后端 24 项单元测试全绿、113 项接口联调无新增失败、生产配置自检 6 项全过、Storefront 注册→下单→查单浏览器端到端、两处 XSS 修复的真实 DOM 正反对照、AI 服务工具层 token 透传端到端。
 - **上线前必须完成**：
-  1. **生产配置**：`DEV_LOGIN_FALLBACK=false`（并在此配置下复验演示口令登录被拒）、独立 `JWT_SECRET`、`API_DOCS_ENABLED=false`、`CORS_ALLOWED_ORIGINS` 收敛到正式域名、数据库口令走密钥管理而非 `.env` 明文；
-  2. **登录限流改 Redis 计数**：当前是单实例内存实现，多副本部署会各自计数、限流形同虚设；
-  3. **ai-service 真实端到端验证**：本机 venv 未装依赖，Python 侧改动（P0-5 鉴权头、P1-6 token 透传）只做了语法检查与桩件验证，需在装好依赖的环境跑通 Copilot 与客服链路；
-  4. **Storefront 浏览器实测**：JSON-LD 与 AI 客服 Markdown 两处 XSS 修复只过了 `tsc`，需用 `<img src=x onerror=alert(1)>`、`</script>`、`[x](javascript:alert(1))` 实际验证；
-  5. **C 端账户体系**（P1-6/P1-9 的根治）：Storefront 账户目前是 localStorage 模拟、口令明文，游客订单 `user_id` 为 NULL。已做的服务端半修保证「不泄露他人订单」，但**游客/顾客侧查单功能在账户体系落地前不可用**——这是产品决策点，不要靠前端自报 ID 绕过。
+  1. **LLM 全链路复测**：StepFun key 当前返回 `no active step plan subscription`，Copilot/客服的真实对话未验证；RAG 还需安装 chromadb + BGE-m3（约 2.5GB，含 torch）。换用其它 provider 时同步复测 `MODEL_CHAT/MODEL_TOOL`；
+  2. **Admin 后台浏览器实测**：Admin 前端（含 openapi 生成的 services）未跑 UI，只做了接口级验证；
+  3. **产品决策**：C 端注册无邮箱验证/忘记密码（注册即可用）；确认是否接受；
+  4. 按基线执行生产配置并复跑自检：`DEV_LOGIN_FALLBACK=false`、`API_DOCS_ENABLED=false`、独立 `JWT_SECRET`、CORS 收敛、DB 口令走密钥管理。
 - **遗留清理项**：
   - `D:\storefront-nested-git-backup-20260912`：平铺前的嵌套仓备份，确认根仓 storefront 文件完整后可删除；
-  - `docs/ADMIN-TEST-REPORT.md` 仍是 2026-06-30 的旧报告，本轮联调结果只写在本文（未覆盖用户的历史报告）；
-  - 本次审查新建的 postgres 数据卷含联调脚本写入的测试数据，若要干净环境需 `docker compose down -v` 重建。
+  - `docs/ADMIN-TEST-REPORT.md` 仍是 2026-06-30 的旧报告，本轮联调结果只写在本文（未覆盖历史报告）；
+  - 本次审查新建的 postgres 数据卷含联调脚本写入的测试数据，若要干净环境需 `docker compose down -v` 重建；
+  - `ai-service/.venv`（Python 3.12）为运行 AI 服务所建，保留；旧的 `ai-service/venv`（3.9 空壳）可删除。

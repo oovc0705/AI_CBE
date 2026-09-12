@@ -15,6 +15,7 @@ interface SSEEvent {
 }
 
 import { CartItem, getCart } from './cart';
+import { authHeaders } from './auth';
 
 export interface BrowsingHistory {
   productId: number;
@@ -82,7 +83,7 @@ export function streamCustomerChat(
 
   fetch('/api/ai/customer/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
     signal: controller.signal,
   })

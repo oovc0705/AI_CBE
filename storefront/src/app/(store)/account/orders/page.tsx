@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { authHeaders } from '@/lib/auth';
 
 interface Order {
   id: number;
@@ -51,7 +52,7 @@ export default function AccountOrdersPage() {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), size: '10' });
     if (statusFilter) params.set('status', statusFilter);
-    fetch(`/api/orders?${params}`)
+    fetch(`/api/orders?${params}`, { headers: authHeaders() })
       .then((res) => res.json())
       .then((json) => {
         if (json.code === 200 && json.data) {
