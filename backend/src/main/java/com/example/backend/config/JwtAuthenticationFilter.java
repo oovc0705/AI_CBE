@@ -1,5 +1,6 @@
 package com.example.backend.config;
 
+import com.example.backend.security.AuthUser;
 import com.example.backend.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -36,11 +37,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String username = claims.get("username", String.class);
                 String role = claims.get("role", String.class);
 
+                // JWT 中 role 为小写（admin/operator/viewer/customer），
+                // hasAnyRole("ADMIN") 匹配的是 ROLE_ADMIN，此处统一大写
+                String authority = "ROLE_" + (role == null ? "USER" : role.trim().toUpperCase());
+
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
-                                username,
+                                new AuthUser(userId, username, role),
                                 null,
-                                Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role))
+                                Collections.singletonList(new SimpleGrantedAuthority(authority))
                         );
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);

@@ -2,6 +2,7 @@ package com.example.backend.service;
 
 import com.example.backend.dto.admin.CurrencyRequest;
 import com.example.backend.entity.Currency;
+import com.example.backend.exception.DuplicateResourceException;
 import com.example.backend.mapper.CurrencyMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,7 @@ public class CurrencyService {
     @Transactional
     public Currency create(CurrencyRequest req) {
         if (currencyMapper.findByCode(req.getCode()) != null) {
-            throw new RuntimeException("货币代码已存在");
+            throw new DuplicateResourceException("货币代码已存在");
         }
         Currency currency = toCurrency(req, null);
         currency.setId(UUID.randomUUID().toString());
@@ -53,7 +54,7 @@ public class CurrencyService {
         }
         Currency byCode = currencyMapper.findByCode(req.getCode());
         if (byCode != null && !byCode.getId().equals(id)) {
-            throw new RuntimeException("货币代码已存在");
+            throw new DuplicateResourceException("货币代码已存在");
         }
         Currency currency = toCurrency(req, existing);
         currency.setUpdatedAt(Instant.now());

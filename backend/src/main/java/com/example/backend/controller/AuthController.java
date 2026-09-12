@@ -10,6 +10,9 @@ import com.example.backend.mapper.UserMapper;
 import com.example.backend.util.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @RestController
 @RequiredArgsConstructor
@@ -26,8 +31,33 @@ public class AuthController {
     private final UserMapper userMapper;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
+    /** 开发环境演示口令兜底，默认关闭；生产严禁开启 */
+    @Value("${app.dev-login-fallback:false}")
+    private boolean devLoginFallback;
+
+    private static final int LOGIN_WINDOW_MS = 60_000;
+    private static final int LOGIN_MAX_ATTEMPTS = 10;
+    private final Map<String, LoginAttempt> loginAttempts = new ConcurrentHashMap<>();
+
+    private record LoginAttempt(AtomicInteger count, long windowStart) {}
+
+    private boolean isRateLimited(String ip) {
+        long now = System.currentTimeMillis();
+        LoginAttempt attempt = loginAttempts.compute(ip, (key, existing) -> {
+            if (existing == null || now - existing.windowStart() > LOGIN_WINDOW_MS) {
+                return new LoginAttempt(new AtomicInteger(0), now);
+            }
+            return existing;
+        });
+        return attempt.count().incrementAndGet() > LOGIN_MAX_ATTEMPTS;
+    }
+
     @PostMapping("/api/login/account")
-    public Result<LoginResult> login(@RequestBody LoginRequest req) {
+    public ResponseEntity<Result<LoginResult>> login(@RequestBody LoginRequest req, HttpServletRequest request) {
+        if (isRateLimited(clientIp(request))) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(Result.error(429, "登录尝试过于频繁，请稍后再试"));
+        }
         String username = req.getUsername();
         String password = req.getPassword();
 
@@ -40,8 +70,9 @@ public class AuthController {
         String userId;
         boolean valid;
 
-        // 开发兜底：admin/ant.design 和 user/ant.design 始终允许登录
-        if ("ant.design".equals(password) && ("admin".equals(username) || "user".equals(username))) {
+        // 开发兜底：仅在 app.dev-login-fallback=true 时允许演示口令登录
+        if (devLoginFallback && "ant.design".equals(password)
+                && ("admin".equals(username) || "user".equals(username))) {
             valid = true;
             role = "admin".equals(username) ? "admin" : "user";
             userId = user != null ? String.valueOf(user.getId()) : "fallback-" + username;
@@ -56,7 +87,7 @@ public class AuthController {
         }
 
         if (!valid) {
-            return Result.error(401, "账户或密码错误");
+            return ResponseEntity.ok(Result.error(401, "账户或密码错误"));
         }
 
         // B 端管理员角色映射为前端认识的值
@@ -69,7 +100,7 @@ public class AuthController {
                 frontendRole,
                 token
         );
-        return Result.success(result);
+        return ResponseEntity.ok(Result.success(result));
     }
 
     @GetMapping("/api/currentUser")
@@ -118,6 +149,14 @@ public class AuthController {
             return header.substring(7);
         }
         return null;
+    }
+
+    private String clientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 
     @PostMapping("/api/login/outLogin")

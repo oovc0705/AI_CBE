@@ -39,9 +39,11 @@ public class OrderService {
 
     /**
      * 创建订单（含明细、运费、税费、商品快照）
+     *
+     * @param userId 下单用户 ID，必须来自已验证的 JWT（游客下单传 null），不接受前端自报值
      */
     @Transactional
-    public SimpleOrder createOrder(OrderRequest request) {
+    public SimpleOrder createOrder(OrderRequest request, Long userId) {
         if (request == null || request.getItems() == null || request.getItems().isEmpty()) {
             throw new IllegalArgumentException("购物车为空");
         }
@@ -92,6 +94,7 @@ public class OrderService {
         // 3) 写入订单主表
         Order order = new Order();
         order.setOrderNo(generateOrderNo());
+        order.setUserId(userId);
         order.setTotalAmount(totalAmount);
         order.setCurrency("USD");
         order.setStatus(OrderStatus.PENDING);
@@ -179,6 +182,18 @@ public class OrderService {
         OrderStatus orderStatus = OrderStatus.valueOf(status.name());
         List<Order> orders = orderMapper.findByStatusOrderByCreatedAtDesc(orderStatus, offset, limit);
         long total = orderMapper.countByStatus(orderStatus);
+        List<SimpleOrder> content = orders.stream().map(this::toSimpleOrder).toList();
+        return new PageImpl<>(content, pageable, total);
+    }
+
+    /** 组合条件分页查询：userId 用于顾客订单隔离，orderId/orderNo 用于精确查询 */
+    public Page<SimpleOrder> listFiltered(Long userId, Long orderId, String orderNo,
+                                          SimpleOrderStatus status, Pageable pageable) {
+        int offset = (int) pageable.getOffset();
+        int limit = pageable.getPageSize();
+        OrderStatus orderStatus = status == null ? null : OrderStatus.valueOf(status.name());
+        List<Order> orders = orderMapper.findByFilter(userId, orderId, orderNo, orderStatus, offset, limit);
+        long total = orderMapper.countByFilter(userId, orderId, orderNo, orderStatus);
         List<SimpleOrder> content = orders.stream().map(this::toSimpleOrder).toList();
         return new PageImpl<>(content, pageable, total);
     }

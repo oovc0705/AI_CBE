@@ -2,6 +2,7 @@ package com.example.backend.service;
 
 import com.example.backend.dto.admin.AdminUserRequest;
 import com.example.backend.entity.AdminUser;
+import com.example.backend.exception.DuplicateResourceException;
 import com.example.backend.mapper.AdminUserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -34,7 +35,7 @@ public class AdminUserService {
     @Transactional
     public AdminUser create(AdminUserRequest req) {
         if (adminUserMapper.findByEmail(req.getEmail()) != null) {
-            throw new RuntimeException("邮箱已存在");
+            throw new DuplicateResourceException("邮箱已存在");
         }
         AdminUser user = toUser(req, null);
         user.setId(UUID.randomUUID().toString());
@@ -53,7 +54,7 @@ public class AdminUserService {
         }
         AdminUser byEmail = adminUserMapper.findByEmail(req.getEmail());
         if (byEmail != null && !byEmail.getId().equals(id)) {
-            throw new RuntimeException("邮箱已存在");
+            throw new DuplicateResourceException("邮箱已存在");
         }
         AdminUser user = toUser(req, existing);
         if (req.getPassword() != null && !req.getPassword().isEmpty()) {

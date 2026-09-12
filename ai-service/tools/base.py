@@ -54,41 +54,42 @@ class HttpClient:
 
     async def get(self) -> httpx.AsyncClient:
         if self._client is None:
-            headers = {"Content-Type": "application/json"}
-            # 优先使用当前请求上下文中的动态 token（前端传入的 admin token）
-            dynamic_token = auth_token_context.get()
-            if dynamic_token:
-                headers["Authorization"] = f"Bearer {dynamic_token}"
-            elif settings.java_api_token:
-                headers["Authorization"] = f"Bearer {settings.java_api_token}"
+            # 注意：鉴权头不能放在这里。客户端是复用的，
+            # 固化 token 会让后续所有请求都带第一个用户的身份。
             self._client = httpx.AsyncClient(
                 base_url=settings.java_api_base_url,
-                headers=headers,
+                headers={"Content-Type": "application/json"},
                 timeout=30.0,
             )
         return self._client
 
+    @staticmethod
+    def _auth_headers() -> Dict[str, str]:
+        """按请求动态取鉴权头：优先当前请求上下文的 token，回落到配置的固定 token。"""
+        token = auth_token_context.get() or settings.java_api_token
+        return {"Authorization": f"Bearer {token}"} if token else {}
+
     async def get_json(self, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
         client = await self.get()
-        resp = await client.get(path, params=params)
+        resp = await client.get(path, params=params, headers=self._auth_headers())
         resp.raise_for_status()
         return resp.json()
 
     async def post_json(self, path: str, payload: Optional[Dict[str, Any]] = None) -> Any:
         client = await self.get()
-        resp = await client.post(path, json=payload or {})
+        resp = await client.post(path, json=payload or {}, headers=self._auth_headers())
         resp.raise_for_status()
         return resp.json()
 
     async def put_json(self, path: str, payload: Optional[Dict[str, Any]] = None) -> Any:
         client = await self.get()
-        resp = await client.put(path, json=payload or {})
+        resp = await client.put(path, json=payload or {}, headers=self._auth_headers())
         resp.raise_for_status()
         return resp.json()
 
     async def patch_json(self, path: str, payload: Optional[Dict[str, Any]] = None) -> Any:
         client = await self.get()
-        resp = await client.patch(path, json=payload or {})
+        resp = await client.patch(path, json=payload or {}, headers=self._auth_headers())
         resp.raise_for_status()
         return resp.json()
 

@@ -2,6 +2,7 @@ package com.example.backend.service;
 
 import com.example.backend.dto.admin.ShippingCarrierRequest;
 import com.example.backend.entity.ShippingCarrier;
+import com.example.backend.exception.DuplicateResourceException;
 import com.example.backend.mapper.ShippingCarrierMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,7 @@ public class ShippingCarrierService {
     @Transactional
     public ShippingCarrier create(ShippingCarrierRequest req) {
         if (shippingCarrierMapper.findByCode(req.getCode()) != null) {
-            throw new RuntimeException("物流商代码已存在");
+            throw new DuplicateResourceException("物流商代码已存在");
         }
         ShippingCarrier carrier = toCarrier(req, null);
         carrier.setId(UUID.randomUUID().toString());
@@ -50,7 +51,7 @@ public class ShippingCarrierService {
         }
         ShippingCarrier byCode = shippingCarrierMapper.findByCode(req.getCode());
         if (byCode != null && !byCode.getId().equals(id)) {
-            throw new RuntimeException("物流商代码已存在");
+            throw new DuplicateResourceException("物流商代码已存在");
         }
         ShippingCarrier carrier = toCarrier(req, existing);
         carrier.setUpdatedAt(Instant.now());

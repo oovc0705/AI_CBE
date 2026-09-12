@@ -2,6 +2,7 @@ package com.example.backend.service;
 
 import com.example.backend.dto.admin.AdminRoleRequest;
 import com.example.backend.entity.AdminRole;
+import com.example.backend.exception.DuplicateResourceException;
 import com.example.backend.mapper.AdminRoleMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,7 +38,7 @@ public class AdminRoleService {
     @Transactional
     public AdminRole create(AdminRoleRequest req) {
         if (adminRoleMapper.findByName(req.getName()) != null) {
-            throw new RuntimeException("角色名已存在");
+            throw new DuplicateResourceException("角色名已存在");
         }
         AdminRole role = toRole(req, null);
         role.setId(UUID.randomUUID().toString());
@@ -55,7 +56,7 @@ public class AdminRoleService {
         }
         AdminRole byName = adminRoleMapper.findByName(req.getName());
         if (byName != null && !byName.getId().equals(id)) {
-            throw new RuntimeException("角色名已存在");
+            throw new DuplicateResourceException("角色名已存在");
         }
         AdminRole role = toRole(req, existing);
         role.setUpdatedAt(Instant.now());

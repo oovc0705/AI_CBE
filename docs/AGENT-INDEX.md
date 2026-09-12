@@ -1,5 +1,9 @@
 # AGENT-INDEX.md
 
+> **先读根目录 [`agent.md`](../agent.md)**：那里记录了项目现状、鉴权模型、必填环境变量、
+> 「文档与实现偏差表」以及最近一次交付前审查（2026-09-12）的结论与待办。
+> 本索引侧重目录结构与「改 X 看哪里」，两者配合使用；若两者冲突，以 `agent.md` 的偏差表为准。
+
 > **本文件用途**：本仓库功能越来越多，AI Agent 在执行新指令前应**优先**完整阅读本文件，避免反复打开大量源文件。
 > 建议：每轮只精读本索引 + 任务直接命中的 1~3 个文件，其他文件**不要**主动展开。
 > （每次执行完任务更新这个索引文档，方便后续新对话能够快速定位到相关文件）
@@ -258,7 +262,7 @@ d:\ai_cbe\
 │   ├── ADMIN-TEST-REPORT.md    # ★ 最近一次 admin 联调报告（81/81 通过）
 │   └── ...
 │
-├── docker-compose.yml          # 基础设施（mysql/redis/chroma/ollama 等）
+├── docker-compose.yml          # 基础设施（postgres + redis；chroma/ollama 未编排）
 └── README.md                   # 顶层 README
 ```
 
@@ -370,11 +374,15 @@ HTTP → api/*.py (SSE) → agents/*_agent.py → AgentOrchestrator.run()
 | 写操作必须人工确认 | `ToolEntry.require_confirm` + Redis `pending` |
 | 客服无写权限 | `agents/customer_agent.py: ALLOWED_TOOLS` 只列只读工具 |
 | 顾客订单按 user_id 隔离 | `agent_orchestrator` 在 `caller_user_id` 存在时注入 `query_orders.args.user_id` |
-| Java 后端不可用时按配置回退 mock | `tools/base.py: mock_or_error()`，由 `ENABLE_MOCK_FALLBACK` 控制 |
+| Java 后端不可用时直接报错 | `tools/base.py: propagate_error()`（`mock_or_error` 仅保留旧签名，已无 MOCK 回退） |
 | 切换模型零代码 | `.env` 改 `MODEL_CHAT/MODEL_TOOL` |
 | 启动时自动迁移 | `services/migrations.py` 补齐 `copilot_operations.message_id/error_message/duration_ms` 等列 |
 
 ### 5.3 工具全表（重要：所有 Function Calling 都列在这里）
+
+> ⚠️ 下表「后端」列的 `/api/tools/*` 路径**在 Java 后端并不存在**（历史目标契约）。
+> 实际调用路径见 [docs/java-api-contract.md](java-api-contract.md) 顶部的对照表：
+> 读操作走 `/api/products`、`/api/orders`，写操作走 `/api/admin/**`（需 ADMIN/OPERATOR 角色）。
 
 | 工具名 | 读/写 | 谁用 | 后端 | 入参要点 |
 |--------|------|------|------|---------|
@@ -433,14 +441,18 @@ STEPFUN_API_KEY=<your-key>             # 或 DEEPSEEK_API_KEY / OLLAMA_BASE_URL
 MODEL_CHAT=openai/step-3.7-flash       # 当前 .env 已配置
 MODEL_TOOL=openai/step-3.7-flash
 MODEL_EMBEDDING=BAAI/bge-m3
-JAVA_API_BASE_URL=http://localhost:8080
+JAVA_API_BASE_URL=http://localhost:8081
 REDIS_URL=redis://localhost:6379/0
 DATABASE_URL=postgresql+asyncpg://admin:admin@localhost:5432/ai_cbe
 CHROMA_BASE_URL=http://localhost:8001
 REQUIRE_HUMAN_CONFIRM_WRITE=true
-ENABLE_MOCK_FALLBACK=true          # local 可回退 MOCK；生产应设 false
+ENABLE_MOCK_FALLBACK=true          # 已失效：工具层改为直接报错，不再回退 MOCK
 CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 ```
+
+> **backend/.env 新增必填项**：`JWT_SECRET`（≥32 字节，不能是历史默认值，否则启动 fail-fast）、
+> `DEV_LOGIN_FALLBACK`（演示口令 `admin/ant.design` 开关，默认 false，生产必须 false）、
+> `API_DOCS_ENABLED`（false 时 swagger / api-docs / actuator info+prometheus 转为需鉴权）。
 
 LiteLLM provider 前缀示例：`openai/...`(StepFun)、`deepseek/...`、`zhipu/...`、`dashscope/...`、`ollama/qwen2.5:7b`。
 
@@ -508,7 +520,7 @@ SSE 事件统一为 `data: <json>\n\n`。详细 schema 见 [ai-service/api/copil
 
 1. **写操作必须 `require_confirm=True`**（Copilot 默认拦截；客服 Agent 根本不被授予定义写操作）
 2. **客服 Agent 永远不应拿到写操作**（修改 `ALLOWED_TOOLS` 时核对）
-3. **Java 后端失败的兜底**：每个走 Java 的工具都要 `try/except`，通过 `tools/base.py: mock_or_error()` 统一处理；`ENABLE_MOCK_FALLBACK=true` 时返回带 `[MOCK]` 前缀的 `ToolResult.message`，生产环境应设 `false` 直接报错
+3. **Java 后端失败直接报错**：每个走 Java 的工具都要 `try/except`，通过 `tools/base.py: propagate_error()` 统一处理；**已无 MOCK 回退**（`ENABLE_MOCK_FALLBACK` 不再生效），不要把假数据返回给用户
 4. **新增工具的 schema 用 OpenAI Function Calling 格式**（`type: function` + `function.{name, description, parameters}`）
 5. **新页面访问控制**：admin 端在 `config/routes.ts` 用 `access: 'canAdmin' | 'canView'`
 6. **`admin/src/services/` 禁止手改**，要改用 `npm run openapi` 重新生成
@@ -519,6 +531,9 @@ SSE 事件统一为 `data: <json>\n\n`。详细 schema 见 [ai-service/api/copil
 11. **后端 `service.update` 必须做 partial update**：只覆盖入参中非 null 字段（参见 §4.3 修复记录）
 12. **PowerShell 多部分上传用 `Send-MultipartForm`**，不要用 `Invoke-WebRequest -Form`
 13. **Spring Boot `OFFSET` 不可负**：0-based 分页用 `page * size`，不要用 `(page - 1) * size`
+14. **鉴权规则只集中在 `config/SecurityConfig.java`**（全仓无 `@PreAuthorize`）：新增管理接口若不在 `/api/admin/**` 下，必须同步补 `requestMatchers` 规则，否则默认只要求「已登录」
+15. **JWT `role` 是小写**：`JwtAuthenticationFilter` 会 `toUpperCase()` 后授予 `ROLE_ADMIN` 等权限；principal 是 `security/AuthUser(id, username, role)`，取当前用户 ID 用 `AuthUser.resolveId(...)`
+16. **订单列表不信任前端 `userId`**：`OrderController.list` 按 token 身份强制过滤（管理角色除外），未认证请求返回空；`createOrder` 的 `userId` 也只从 token 取
 
 ---
 

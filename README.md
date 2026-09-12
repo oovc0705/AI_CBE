@@ -85,18 +85,23 @@ ai_cbe/
 ### 1. 启动基础设施
 
 ```bash
-docker compose up -d postgres redis chroma
+docker compose up -d postgres redis
 ```
+
+> `docker-compose.yml` 只编排 postgres 与 redis；**Chroma（向量库，RAG 用）未在 compose 中**，需要时自行启动并配置 `CHROMA_BASE_URL`。
 
 ### 2. 启动 Java 后端
 
 ```bash
 cd backend
-cp .env.example .env       # 填数据库 / Redis 连接
+cp .env.example .env       # 填数据库 / Redis 连接，并设置 JWT_SECRET（必填）
 mvnw.cmd -DskipTests package
 java -jar target\backend-0.0.1-SNAPSHOT.jar
 # → http://localhost:8081
 ```
+
+> `backend/.env` 由 `spring.config.import` 加载，改完需重启生效。
+> **`JWT_SECRET` 必填**：不少于 32 字节，且不能是历史默认值 `change-me-in-production-32-char-secret`，否则启动直接失败（`StartupEnvValidator` fail-fast）。
 
 ### 3. 启动 AI 服务
 
@@ -139,7 +144,11 @@ python -m rag.ingest --demo
 | ----- | ------- | ------------ |
 | Admin | `admin` | `ant.design` |
 
-> Admin 登录走 `/api/login/account`，返回 JWT，存于 `localStorage`。所有 `/api/admin/*` 请求需带 `Authorization: Bearer <token>`。
+> ⚠️ **仅本地开发可用**：该演示口令由 `backend/.env` 的 `DEV_LOGIN_FALLBACK=true` 开启，**默认关闭**。
+> 生产环境必须保持 `DEV_LOGIN_FALLBACK=false`，否则任何人都能用上表公开口令以 admin 身份登录后台。
+> 生产账户请走 `users` 表 + bcrypt 口令，并配置独立的 `JWT_SECRET`。
+
+> Admin 登录走 `/api/login/account`，返回 JWT，存于 `localStorage`。所有 `/api/admin/*` 请求需带 `Authorization: Bearer <token>`，且要求 `ADMIN`/`OPERATOR` 角色（只读查询额外允许 `VIEWER`）。
 
 ## 常用命令
 

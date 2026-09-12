@@ -2,6 +2,7 @@ package com.example.backend.service;
 
 import com.example.backend.dto.admin.EmailTemplateRequest;
 import com.example.backend.entity.EmailTemplate;
+import com.example.backend.exception.DuplicateResourceException;
 import com.example.backend.mapper.EmailTemplateMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -36,7 +37,7 @@ public class EmailTemplateService {
     @Transactional
     public EmailTemplate create(EmailTemplateRequest req) {
         if (emailTemplateMapper.findByCode(req.getCode()) != null) {
-            throw new RuntimeException("模板代码已存在");
+            throw new DuplicateResourceException("模板代码已存在");
         }
         EmailTemplate template = toTemplate(req, null);
         template.setId(UUID.randomUUID().toString());
@@ -54,7 +55,7 @@ public class EmailTemplateService {
         }
         EmailTemplate byCode = emailTemplateMapper.findByCode(req.getCode());
         if (byCode != null && !byCode.getId().equals(id)) {
-            throw new RuntimeException("模板代码已存在");
+            throw new DuplicateResourceException("模板代码已存在");
         }
         EmailTemplate template = toTemplate(req, existing);
         template.setUpdatedAt(Instant.now());

@@ -3,6 +3,7 @@ package com.example.backend.service;
 import com.example.backend.dto.admin.TranslationKeyRequest;
 import com.example.backend.dto.admin.TranslationValueRequest;
 import com.example.backend.entity.TranslationKey;
+import com.example.backend.exception.DuplicateResourceException;
 import com.example.backend.entity.TranslationValue;
 import com.example.backend.mapper.TranslationKeyMapper;
 import com.example.backend.mapper.TranslationValueMapper;
@@ -84,7 +85,7 @@ public class TranslationService {
     @Transactional
     public TranslationKey createKey(TranslationKeyRequest req) {
         if (translationKeyMapper.findByKey(req.getKey()) != null) {
-            throw new RuntimeException("翻译键已存在");
+            throw new DuplicateResourceException("翻译键已存在");
         }
         TranslationKey key = new TranslationKey();
         key.setId(UUID.randomUUID().toString());
@@ -106,7 +107,7 @@ public class TranslationService {
         if (req.getKey() != null && !req.getKey().isBlank() && !req.getKey().equals(existing.getKey())) {
             TranslationKey byKey = translationKeyMapper.findByKey(req.getKey());
             if (byKey != null && !byKey.getId().equals(id)) {
-                throw new RuntimeException("翻译键已存在");
+                throw new DuplicateResourceException("翻译键已存在");
             }
             existing.setKey(req.getKey());
         }

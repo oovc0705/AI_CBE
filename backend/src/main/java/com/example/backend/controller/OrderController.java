@@ -6,12 +6,14 @@ import com.example.backend.entity.Payment;
 import com.example.backend.entity.SimpleOrder;
 import com.example.backend.entity.SimpleOrderStatus;
 import com.example.backend.entity.SupportRequest;
+import com.example.backend.security.AuthUser;
 import com.example.backend.service.OrderService;
 import com.example.backend.service.SupportRequestService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -35,9 +37,12 @@ public class OrderController {
      * 创建订单（待支付）。前端 checkout 提交：商品 + 收货信息 + 邮箱
      */
     @PostMapping
-    public Result<Map<String, Object>> createOrder(@RequestBody OrderRequest request) {
+    public Result<Map<String, Object>> createOrder(@RequestBody OrderRequest request,
+                                                  Authentication authentication) {
         try {
-            SimpleOrder order = orderService.createOrder(request);
+            // userId 只取自已验证的 token，游客下单为 null
+            Long userId = authentication == null ? null : AuthUser.resolveId(authentication.getPrincipal());
+            SimpleOrder order = orderService.createOrder(request, userId);
             Map<String, Object> result = new HashMap<>();
             result.put("orderId", order.getId());
             result.put("orderNo", order.getOrderNo());
@@ -65,12 +70,42 @@ public class OrderController {
     @GetMapping
     public Result<Page<SimpleOrder>> list(
             @RequestParam(required = false) SimpleOrderStatus status,
-            Pageable pageable) {
-        if (status != null) {
-            return Result.success(orderService.listByStatus(status, pageable));
-        }
-        return Result.success(orderService.list(pageable));
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) Long orderId,
+            @RequestParam(required = false) String orderNo,
+            Pageable pageable,
+            Authentication authentication) {
+        return Result.success(orderService.listFiltered(
+                resolveUserIdFilter(userId, authentication), orderId, orderNo, status, pageable));
     }
+
+    /**
+     * 订单列表的用户过滤只信服务端身份：
+     * 管理角色可自由查询；普通登录用户强制用自己的 ID（忽略前端自报值）；未登录返回空结果。
+     */
+    private Long resolveUserIdFilter(String userIdParam, Authentication authentication) {
+        if (isPrivileged(authentication)) {
+            if (userIdParam == null || userIdParam.isBlank()) {
+                return null;
+            }
+            return userIdParam.matches("\\d+") ? Long.parseLong(userIdParam) : NO_USER_MATCH;
+        }
+        Long principalId = authentication == null ? null : AuthUser.resolveId(authentication.getPrincipal());
+        // 未登录或身份不可解析（如开发兜底账号）时不做全量返回
+        return principalId != null ? principalId : NO_USER_MATCH;
+    }
+
+    private boolean isPrivileged(Authentication authentication) {
+        if (authentication == null || authentication.getAuthorities() == null) {
+            return false;
+        }
+        return authentication.getAuthorities().stream()
+                .map(Object::toString)
+                .anyMatch(a -> a.equals("ROLE_ADMIN") || a.equals("ROLE_OPERATOR") || a.equals("ROLE_VIEWER"));
+    }
+
+    /** 非法/不存在的 userId 哨兵值：不会命中任何订单 */
+    private static final Long NO_USER_MATCH = -1L;
 
     /**
      * 支付订单（模拟网关）

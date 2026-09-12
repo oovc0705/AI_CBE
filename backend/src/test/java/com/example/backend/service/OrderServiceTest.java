@@ -6,6 +6,7 @@ import com.example.backend.mapper.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -73,14 +74,16 @@ class OrderServiceTest {
         req.setCustomerEmail("test@example.com");
 
         // Act
-        SimpleOrder result = orderService.createOrder(req);
+        SimpleOrder result = orderService.createOrder(req, 7L);
 
         // Assert
         assertNotNull(result);
         assertTrue(result.getTotalAmount().compareTo(BigDecimal.ZERO) > 0);
         assertEquals(SimpleOrderStatus.PENDING, result.getStatus());
         assertTrue(result.getOrderNo().startsWith("ORD"));
-        verify(orderMapper).insert(any(Order.class));
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderMapper).insert(orderCaptor.capture());
+        assertEquals(7L, orderCaptor.getValue().getUserId());
         verify(orderItemMapper).insert(any(OrderItem.class));
     }
 
@@ -88,13 +91,13 @@ class OrderServiceTest {
     void createOrder_emptyItems_shouldThrow() {
         OrderRequest req = new OrderRequest();
         req.setItems(List.of());
-        assertThrows(IllegalArgumentException.class, () -> orderService.createOrder(req));
+        assertThrows(IllegalArgumentException.class, () -> orderService.createOrder(req, null));
     }
 
     @Test
     void createOrder_nullItems_shouldThrow() {
         OrderRequest req = new OrderRequest();
-        assertThrows(IllegalArgumentException.class, () -> orderService.createOrder(req));
+        assertThrows(IllegalArgumentException.class, () -> orderService.createOrder(req, null));
     }
 
     @Test

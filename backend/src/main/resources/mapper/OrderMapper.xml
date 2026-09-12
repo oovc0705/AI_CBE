@@ -124,6 +124,26 @@
         SELECT COUNT(*) FROM orders WHERE status = #{status}
     </select>
 
+    <sql id="FilterWhere">
+        <where>
+            <if test="userId != null">AND user_id = #{userId}</if>
+            <if test="orderId != null">AND id = #{orderId}</if>
+            <if test="orderNo != null and orderNo != ''">AND order_no = #{orderNo}</if>
+            <if test="status != null">AND status = #{status}</if>
+        </where>
+    </sql>
+
+    <select id="findByFilter" resultMap="BaseResultMap">
+        SELECT * FROM orders
+        <include refid="FilterWhere"/>
+        ORDER BY created_at DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByFilter" resultType="long">
+        SELECT COUNT(*) FROM orders
+        <include refid="FilterWhere"/>
+    </select>
+
     <!-- Dashboard statistics - 时间计算全部在数据库侧完成，避免时区不一致 -->
     <select id="sumTotalAmountByStatusInAndCreatedAtAfterDays" resultType="java.math.BigDecimal">
         SELECT COALESCE(SUM(total_amount), 0) FROM orders

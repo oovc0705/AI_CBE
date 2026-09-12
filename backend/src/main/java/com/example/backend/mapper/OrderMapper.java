@@ -21,6 +21,19 @@ public interface OrderMapper {
     List<Order> findByStatusOrderByCreatedAtDesc(@Param("status") OrderStatus status, @Param("offset") int offset, @Param("limit") int limit);
     long countByStatus(@Param("status") OrderStatus status);
 
+    /** 组合条件分页查询：userId / orderId / orderNo / status 均可选 */
+    List<Order> findByFilter(@Param("userId") Long userId,
+                             @Param("orderId") Long orderId,
+                             @Param("orderNo") String orderNo,
+                             @Param("status") OrderStatus status,
+                             @Param("offset") int offset,
+                             @Param("limit") int limit);
+
+    long countByFilter(@Param("userId") Long userId,
+                       @Param("orderId") Long orderId,
+                       @Param("orderNo") String orderNo,
+                       @Param("status") OrderStatus status);
+
     int insert(Order order);
     int update(Order order);
     int updateStatus(@Param("id") Long id, @Param("status") String status);
