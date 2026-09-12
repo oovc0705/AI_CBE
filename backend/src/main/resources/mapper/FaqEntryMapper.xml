@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.FaqEntryMapper">
+
+    <resultMap id="FaqEntryResultMap" type="com.example.backend.entity.FaqEntry">
+        <id column="id" property="id"/>
+        <result column="question" property="question"/>
+        <result column="answer" property="answer"/>
+        <result column="category" property="category"/>
+        <result column="locale" property="locale"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="enabled" property="enabled"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="FaqEntryResultMap">
+        SELECT * FROM faq_entries WHERE id = #{id}
+    </select>
+
+    <select id="findAll" resultMap="FaqEntryResultMap">
+        SELECT * FROM faq_entries
+        <where>
+            <if test="category != null and category != ''">AND category = #{category}</if>
+            <if test="locale != null and locale != ''">AND locale = #{locale}</if>
+        </where>
+        ORDER BY sort_order, created_at
+    </select>
+
+    <insert id="insert">
+        INSERT INTO faq_entries (id, question, answer, category, locale, sort_order, enabled, created_at, updated_at)
+        VALUES (#{id}, #{question}, #{answer}, #{category}, #{locale}, #{sortOrder}, #{enabled}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE faq_entries
+        SET question = #{question},
+            answer = #{answer},
+            category = #{category},
+            locale = #{locale},
+            sort_order = #{sortOrder},
+            enabled = #{enabled},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM faq_entries WHERE id = #{id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.PaymentTransactionMapper">
+
+    <resultMap id="PaymentTransactionResultMap" type="com.example.backend.entity.PaymentTransaction">
+        <id column="id" property="id"/>
+        <result column="order_id" property="orderId"/>
+        <result column="gateway_id" property="gatewayId"/>
+        <result column="gateway_transaction_id" property="gatewayTransactionId"/>
+        <result column="amount" property="amount"/>
+        <result column="currency" property="currency"/>
+        <result column="status" property="status"/>
+        <result column="raw_response" property="rawResponse" typeHandler="com.example.backend.config.JsonNodeTypeHandler"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="PaymentTransactionResultMap">
+        SELECT * FROM payment_transactions WHERE id = #{id}
+    </select>
+
+    <select id="findAll" resultMap="PaymentTransactionResultMap">
+        SELECT * FROM payment_transactions
+        <where>
+            <if test="gatewayId != null and gatewayId != ''">AND gateway_id = #{gatewayId}</if>
+            <if test="status != null and status != ''">AND status = #{status}</if>
+        </where>
+        ORDER BY created_at DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM payment_transactions
+        <where>
+            <if test="gatewayId != null and gatewayId != ''">AND gateway_id = #{gatewayId}</if>
+            <if test="status != null and status != ''">AND status = #{status}</if>
+        </where>
+    </select>
+
+    <insert id="insert">
+        INSERT INTO payment_transactions (id, order_id, gateway_id, gateway_transaction_id, amount, currency, status, raw_response, created_at, updated_at)
+        VALUES (#{id}, #{orderId}, #{gatewayId}, #{gatewayTransactionId}, #{amount}, #{currency}, #{status},
+                #{rawResponse, typeHandler=com.example.backend.config.JsonNodeTypeHandler}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE payment_transactions
+        SET order_id = #{orderId},
+            gateway_id = #{gatewayId},
+            gateway_transaction_id = #{gatewayTransactionId},
+            amount = #{amount},
+            currency = #{currency},
+            status = #{status},
+            raw_response = #{rawResponse, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <select id="findAllForExport" resultType="java.util.Map">
+        SELECT id, order_id, gateway_id, gateway_transaction_id, amount, currency, status, created_at
+        FROM payment_transactions
+        ORDER BY created_at DESC
+    </select>
+
+</mapper>

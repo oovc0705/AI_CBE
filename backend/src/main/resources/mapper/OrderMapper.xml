@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.OrderMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.backend.entity.Order">
+        <id column="id" property="id"/>
+        <result column="order_no" property="orderNo"/>
+        <result column="user_id" property="userId"/>
+        <result column="total_amount" property="totalAmount"/>
+        <result column="currency" property="currency"/>
+        <result column="status" property="status" typeHandler="org.apache.ibatis.type.EnumTypeHandler"/>
+        <result column="shipping_address" property="shippingAddress"
+                typeHandler="com.example.backend.config.JsonNodeTypeHandler"/>
+        <result column="coupon_id" property="couponId"/>
+        <result column="discount_amount" property="discountAmount"/>
+        <result column="stripe_session_id" property="stripeSessionId"/>
+        <result column="payment_method" property="paymentMethod"/>
+        <result column="payment_status" property="paymentStatus"/>
+        <result column="transaction_no" property="transactionNo"/>
+        <result column="paid_at" property="paidAt"/>
+        <result column="customer_email" property="customerEmail"/>
+        <result column="customer_note" property="customerNote"/>
+        <result column="shipping_fee" property="shippingFee"/>
+        <result column="tax_amount" property="taxAmount"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT * FROM orders WHERE id = #{id}
+    </select>
+
+    <select id="findByOrderNo" resultMap="BaseResultMap">
+        SELECT * FROM orders WHERE order_no = #{orderNo}
+    </select>
+
+    <select id="findByUserId" resultMap="BaseResultMap">
+        SELECT * FROM orders WHERE user_id = #{userId} ORDER BY created_at DESC
+    </select>
+
+    <select id="findByStatus" resultMap="BaseResultMap">
+        SELECT * FROM orders WHERE status = #{status} ORDER BY created_at DESC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO orders (order_no, user_id, total_amount, currency, status, shipping_address,
+                            coupon_id, discount_amount, stripe_session_id,
+                            payment_method, payment_status, customer_email, customer_note,
+                            shipping_fee, tax_amount)
+        VALUES (
+            #{orderNo},
+            #{userId},
+            #{totalAmount},
+            #{currency},
+            #{status},
+            #{shippingAddress, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+            #{couponId},
+            #{discountAmount},
+            #{stripeSessionId},
+            #{paymentMethod},
+            #{paymentStatus},
+            #{customerEmail},
+            #{customerNote},
+            #{shippingFee},
+            #{taxAmount}
+        )
+    </insert>
+
+    <update id="update">
+        UPDATE orders
+        SET order_no = #{orderNo},
+            user_id = #{userId},
+            total_amount = #{totalAmount},
+            currency = #{currency},
+            status = #{status},
+            shipping_address = #{shippingAddress, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+            coupon_id = #{couponId},
+            discount_amount = #{discountAmount},
+            stripe_session_id = #{stripeSessionId},
+            payment_method = #{paymentMethod},
+            payment_status = #{paymentStatus},
+            transaction_no = #{transactionNo},
+            paid_at = #{paidAt},
+            customer_email = #{customerEmail},
+            customer_note = #{customerNote},
+            shipping_fee = #{shippingFee},
+            tax_amount = #{taxAmount}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE orders SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <!-- 标记订单支付成功：状态 PAID + 支付状态 + 交易号 + 支付时间 -->
+    <update id="markPaid">
+        UPDATE orders
+        SET status = 'PAID',
+            payment_status = 'PAID',
+            payment_method = #{paymentMethod},
+            transaction_no = #{transactionNo},
+            paid_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM orders WHERE id = #{id}
+    </delete>
+
+    <!-- Pagination methods -->
+    <select id="findAllOrderByCreatedAtDesc" resultMap="BaseResultMap">
+        SELECT * FROM orders ORDER BY created_at DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM orders
+    </select>
+
+    <select id="findByStatusOrderByCreatedAtDesc" resultMap="BaseResultMap">
+        SELECT * FROM orders WHERE status = #{status} ORDER BY created_at DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByStatus" resultType="long">
+        SELECT COUNT(*) FROM orders WHERE status = #{status}
+    </select>
+
+    <!-- Dashboard statistics - 时间计算全部在数据库侧完成，避免时区不一致 -->
+    <select id="sumTotalAmountByStatusInAndCreatedAtAfterDays" resultType="java.math.BigDecimal">
+        SELECT COALESCE(SUM(total_amount), 0) FROM orders
+        WHERE status IN
+        <foreach collection="statuses" item="s" open="(" separator="," close=")">
+            #{s}
+        </foreach>
+        <choose>
+            <when test="days == 0">
+                AND created_at >= CURRENT_DATE
+            </when>
+            <otherwise>
+                AND created_at >= NOW() - (#{days} || ' days')::INTERVAL
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="countByStatusInAndCreatedAtAfterDays" resultType="long">
+        SELECT COUNT(*) FROM orders
+        WHERE status IN
+        <foreach collection="statuses" item="s" open="(" separator="," close=")">
+            #{s}
+        </foreach>
+        <choose>
+            <when test="days == 0">
+                AND created_at >= CURRENT_DATE
+            </when>
+            <otherwise>
+                AND created_at >= NOW() - (#{days} || ' days')::INTERVAL
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="getDailySalesTrend" resultType="java.util.Map">
+        SELECT
+            TO_CHAR(DATE(created_at), 'YYYY-MM-DD') as date,
+            COUNT(*) as order_count,
+            COALESCE(SUM(total_amount), 0) as revenue
+        FROM orders
+        WHERE status IN ('PAID', 'SHIPPED', 'COMPLETED')
+          AND created_at &gt;= NOW() - (#{days} || ' days')::INTERVAL
+        GROUP BY DATE(created_at)
+        ORDER BY DATE(created_at) DESC
+    </select>
+
+    <select id="getTopSellingProducts" resultType="java.util.Map">
+        SELECT
+            (oi.product_snapshot-&gt;&gt;'productId')::bigint as productId,
+            (oi.product_snapshot-&gt;&gt;'name') as productName,
+            SUM(oi.quantity) as totalSold,
+            COALESCE(SUM(oi.quantity * oi.price), 0) as revenue
+        FROM order_items oi
+        JOIN orders o ON oi.order_id = o.id
+        WHERE o.status IN ('PAID', 'SHIPPED', 'COMPLETED')
+          AND o.created_at &gt;= NOW() - (#{days} || ' days')::INTERVAL
+        GROUP BY (oi.product_snapshot-&gt;&gt;'productId')::bigint, (oi.product_snapshot-&gt;&gt;'name')
+        ORDER BY totalSold DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findAllForExport" resultType="java.util.Map">
+        SELECT id, user_id, total_amount, status, created_at FROM orders ORDER BY created_at DESC
+    </select>
+
+</mapper>

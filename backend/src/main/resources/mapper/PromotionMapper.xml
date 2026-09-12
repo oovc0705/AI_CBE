@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.PromotionMapper">
+
+    <resultMap id="PromotionResultMap" type="com.example.backend.entity.Promotion">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="type" property="type"/>
+        <result column="discount_type" property="discountType"/>
+        <result column="discount_value" property="discountValue"/>
+        <result column="min_order_amount" property="minOrderAmount"/>
+        <result column="max_discount" property="maxDiscount"/>
+        <result column="usage_limit" property="usageLimit"/>
+        <result column="used_count" property="usedCount"/>
+        <result column="starts_at" property="startsAt"/>
+        <result column="ends_at" property="endsAt"/>
+        <result column="applicable_product_ids" property="applicableProductIds" typeHandler="com.example.backend.config.JsonNodeTypeHandler"/>
+        <result column="enabled" property="enabled"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="PromotionResultMap">
+        SELECT * FROM promotions WHERE id = #{id}
+    </select>
+
+    <select id="findAll" resultMap="PromotionResultMap">
+        SELECT * FROM promotions
+        <where>
+            <if test="enabled != null">AND enabled = #{enabled}</if>
+        </where>
+        ORDER BY created_at DESC
+    </select>
+
+    <insert id="insert">
+        INSERT INTO promotions (id, name, type, discount_type, discount_value, min_order_amount, max_discount, usage_limit, used_count, starts_at, ends_at, applicable_product_ids, enabled, created_at, updated_at)
+        VALUES (#{id}, #{name}, #{type}, #{discountType}, #{discountValue}, #{minOrderAmount}, #{maxDiscount}, #{usageLimit}, #{usedCount}, #{startsAt}, #{endsAt},
+                #{applicableProductIds, typeHandler=com.example.backend.config.JsonNodeTypeHandler}, #{enabled}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE promotions
+        SET name = #{name},
+            type = #{type},
+            discount_type = #{discountType},
+            discount_value = #{discountValue},
+            min_order_amount = #{minOrderAmount},
+            max_discount = #{maxDiscount},
+            usage_limit = #{usageLimit},
+            used_count = #{usedCount},
+            starts_at = #{startsAt},
+            ends_at = #{endsAt},
+            applicable_product_ids = #{applicableProductIds, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+            enabled = #{enabled},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM promotions WHERE id = #{id}
+    </delete>
+
+</mapper>

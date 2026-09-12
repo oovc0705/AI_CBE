@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.PaymentGatewayMapper">
+
+    <resultMap id="PaymentGatewayResultMap" type="com.example.backend.entity.PaymentGateway">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="display_name" property="displayName"/>
+        <result column="enabled" property="enabled"/>
+        <result column="connected" property="connected"/>
+        <result column="config" property="config" typeHandler="com.example.backend.config.JsonNodeTypeHandler"/>
+        <result column="last_four_digits" property="lastFourDigits"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="PaymentGatewayResultMap">
+        SELECT * FROM payment_gateways WHERE id = #{id}
+    </select>
+
+    <select id="findByName" resultMap="PaymentGatewayResultMap">
+        SELECT * FROM payment_gateways WHERE name = #{name}
+    </select>
+
+    <select id="findAll" resultMap="PaymentGatewayResultMap">
+        SELECT * FROM payment_gateways ORDER BY created_at DESC
+    </select>
+
+    <insert id="insert">
+        INSERT INTO payment_gateways (id, name, display_name, enabled, connected, config, last_four_digits, created_at, updated_at)
+        VALUES (#{id}, #{name}, #{displayName}, #{enabled}, #{connected},
+                #{config, typeHandler=com.example.backend.config.JsonNodeTypeHandler}, #{lastFourDigits}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE payment_gateways
+        SET name = #{name},
+            display_name = #{displayName},
+            enabled = #{enabled},
+            connected = #{connected},
+            config = #{config, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+            last_four_digits = #{lastFourDigits},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM payment_gateways WHERE id = #{id}
+    </delete>
+
+</mapper>

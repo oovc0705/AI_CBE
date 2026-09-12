@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.ShippingTemplateMapper">
+
+    <resultMap id="TemplateResultMap" type="com.example.backend.entity.ShippingTemplate">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="is_default" property="isDefault"/>
+        <result column="billing_type" property="billingType"/>
+        <result column="free_shipping_threshold" property="freeShippingThreshold"/>
+        <result column="enabled" property="enabled"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <collection property="rules" column="id" ofType="com.example.backend.entity.ShippingRule"
+                    select="findRulesByTemplateId"/>
+    </resultMap>
+
+    <resultMap id="RuleResultMap" type="com.example.backend.entity.ShippingRule">
+        <id column="id" property="id"/>
+        <result column="template_id" property="templateId"/>
+        <result column="region" property="region"/>
+        <result column="country_code" property="countryCode"/>
+        <result column="first_unit" property="firstUnit"/>
+        <result column="first_unit_fee" property="firstUnitFee"/>
+        <result column="additional_unit" property="additionalUnit"/>
+        <result column="additional_unit_fee" property="additionalUnitFee"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="TemplateResultMap">
+        SELECT * FROM shipping_templates WHERE id = #{id}
+    </select>
+
+    <select id="findAll" resultMap="TemplateResultMap">
+        SELECT * FROM shipping_templates ORDER BY created_at DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM shipping_templates
+    </select>
+
+    <insert id="insert">
+        INSERT INTO shipping_templates (id, name, is_default, billing_type, free_shipping_threshold, enabled, created_at, updated_at)
+        VALUES (#{id}, #{name}, #{isDefault}, #{billingType}, #{freeShippingThreshold}, #{enabled}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE shipping_templates
+        SET name = #{name},
+            is_default = #{isDefault},
+            billing_type = #{billingType},
+            free_shipping_threshold = #{freeShippingThreshold},
+            enabled = #{enabled},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM shipping_templates WHERE id = #{id}
+    </delete>
+
+    <update id="clearDefault">
+        UPDATE shipping_templates SET is_default = FALSE
+    </update>
+
+    <select id="findRulesByTemplateId" resultMap="RuleResultMap">
+        SELECT * FROM shipping_rules WHERE template_id = #{templateId} ORDER BY created_at
+    </select>
+
+    <insert id="insertRule">
+        INSERT INTO shipping_rules (id, template_id, region, country_code, first_unit, first_unit_fee, additional_unit, additional_unit_fee, created_at)
+        VALUES (#{id}, #{templateId}, #{region}, #{countryCode}, #{firstUnit}, #{firstUnitFee}, #{additionalUnit}, #{additionalUnitFee}, #{createdAt})
+    </insert>
+
+    <delete id="deleteRulesByTemplateId">
+        DELETE FROM shipping_rules WHERE template_id = #{templateId}
+    </delete>
+
+</mapper>

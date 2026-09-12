@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.SystemNotificationMapper">
+
+    <resultMap id="SystemNotificationResultMap" type="com.example.backend.entity.SystemNotification">
+        <id column="id" property="id"/>
+        <result column="type" property="type"/>
+        <result column="title" property="title"/>
+        <result column="content" property="content"/>
+        <result column="data" property="data" typeHandler="com.example.backend.config.JsonNodeTypeHandler"/>
+        <result column="is_read" property="isRead"/>
+        <result column="recipient_id" property="recipientId"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="SystemNotificationResultMap">
+        SELECT * FROM system_notifications WHERE id = #{id}
+    </select>
+
+    <select id="findAll" resultMap="SystemNotificationResultMap">
+        SELECT * FROM system_notifications
+        <where>
+            <if test="recipientId != null and recipientId != ''">AND recipient_id = #{recipientId}</if>
+            <if test="isRead != null">AND is_read = #{isRead}</if>
+        </where>
+        ORDER BY created_at DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM system_notifications
+        <where>
+            <if test="recipientId != null and recipientId != ''">AND recipient_id = #{recipientId}</if>
+            <if test="isRead != null">AND is_read = #{isRead}</if>
+        </where>
+    </select>
+
+    <insert id="insert">
+        INSERT INTO system_notifications (id, type, title, content, data, is_read, recipient_id, created_at)
+        VALUES (#{id}, #{type}, #{title}, #{content},
+                #{data, typeHandler=com.example.backend.config.JsonNodeTypeHandler}, #{isRead}, #{recipientId}, #{createdAt})
+    </insert>
+
+    <update id="update">
+        UPDATE system_notifications
+        SET type = #{type},
+            title = #{title},
+            content = #{content},
+            data = #{data, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+            is_read = #{isRead},
+            recipient_id = #{recipientId}
+        WHERE id = #{id}
+    </update>
+
+    <update id="markAllRead">
+        UPDATE system_notifications SET is_read = TRUE
+        <where>
+            <if test="recipientId != null and recipientId != ''">AND recipient_id = #{recipientId}</if>
+        </where>
+    </update>
+
+</mapper>

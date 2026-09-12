@@ -1,0 +1,106 @@
+name: Admin CI
+
+on:
+  push:
+    branches: [main]
+    paths: ['admin/**']
+  pull_request:
+    branches: [main]
+    paths: ['admin/**']
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: ecommerce
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'ci_test_password' }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npm run tsc
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test -- --passWithNoTests
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Start backend
+        working-directory: backend
+        run: |
+          ./mvnw spring-boot:run &
+          echo $! > /tmp/backend.pid
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/ecommerce
+          SPRING_DATASOURCE_USERNAME: admin
+          SPRING_DATASOURCE_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'ci_test_password' }}
+
+      - name: Wait for backend
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8080/api/health > /dev/null 2>&1; then
+              echo "Backend ready"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Seed test data
+        run: npm run seed
+
+      - name: Start admin preview server
+        run: npx max preview --port 8000 &
+
+      - name: Run E2E tests
+        run: npx playwright test
+        env:
+          ADMIN_URL: http://localhost:8000
+          CI: true
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: admin/playwright-report/
+          retention-days: 7

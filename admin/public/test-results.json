@@ -1,0 +1,452 @@
+﻿[
+    {
+        "status":  200,
+        "ms":  47,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"todayRevenue\":0,\"sevenDayOrders\":4,\"pendingTickets\":1,\"openTickets\":0,\"lowStock",
+        "url":  "/api/admin/dashboard/overview",
+        "group":  "Dashboard"
+    },
+    {
+        "status":  200,
+        "ms":  7,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":[\"@{date=2026-06-27; revenue=611.00; order_count=4}\",\"@{date=2026-06-24; revenue=",
+        "url":  "/api/admin/dashboard/sales-trend?days=30",
+        "group":  "Dashboard"
+    },
+    {
+        "status":  200,
+        "ms":  6,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":[\"@{revenue=130.00; productid=11; productname=Under Armour HeatGear Hoodie; total",
+        "url":  "/api/admin/dashboard/top-products?days=30\u0026limit=5",
+        "group":  "Dashboard"
+    },
+    {
+        "status":  200,
+        "ms":  26,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"todayRevenue\":0,\"sevenDayOrders\":4,\"pendingTickets\":1,\"openTickets\":0,\"lowStock",
+        "url":  "/api/admin/dashboard/stats",
+        "group":  "Dashboard"
+    },
+    {
+        "status":  200,
+        "ms":  15,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"content\":\"         \",\"first\":false,\"last\":false,\"number\":0,\"size\":10,\"totalElem",
+        "url":  "/api/admin/products?page=0\u0026size=10",
+        "group":  "Products"
+    },
+    {
+        "status":  200,
+        "ms":  10,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"content\":\"\",\"first\":false,\"last\":false,\"number\":0,\"size\":10,\"totalElements\":0,\"",
+        "url":  "/api/admin/products?keyword=test\u0026page=0\u0026size=10",
+        "group":  "Products"
+    },
+    {
+        "status":  500,
+        "ms":  39,
+        "note":  "失败: The remote server returned an error: (500) Internal Server Error.",
+        "method":  "POST",
+        "sample":  "",
+        "url":  "/api/admin/products",
+        "group":  "Products"
+    },
+    {
+        "status":  200,
+        "ms":  11,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"content\":\"     \",\"first\":false,\"last\":false,\"number\":0,\"size\":10,\"totalElements",
+        "url":  "/api/admin/orders?page=0\u0026size=10",
+        "group":  "Orders"
+    },
+    {
+        "status":  200,
+        "ms":  6,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"content\":\"\",\"first\":false,\"last\":false,\"number\":0,\"size\":10,\"totalElements\":0,\"",
+        "url":  "/api/admin/orders?status=PENDING\u0026page=0\u0026size=10",
+        "group":  "Orders"
+    },
+    {
+        "status":  200,
+        "ms":  7,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"content\":\"     \",\"empty\":false,\"first\":true,\"last\":true,\"number\":0,\"numberOfEle",
+        "url":  "/api/admin/categories?page=0\u0026size=20",
+        "group":  "Categories"
+    },
+    {
+        "status":  200,
+        "ms":  9,
+        "note":  "创建品类",
+        "method":  "POST",
+        "sample":  "{\"code\":200,\"data\":{\"children\":null,\"createdAt\":null,\"id\":19,\"nameI18n\":\"@{array=False; bigDecimal=F",
+        "url":  "/api/admin/categories",
+        "group":  "Categories"
+    },
+    {
+        "status":  200,
+        "ms":  5,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"content\":\"                   \",\"empty\":false,\"first\":true,\"last\":false,\"number\"",
+        "url":  "/api/admin/brands?page=0\u0026size=20",
+        "group":  "Brands"
+    },
+    {
+        "status":  200,
+        "ms":  5,
+        "note":  "创建品牌",
+        "method":  "POST",
+        "sample":  "{\"code\":200,\"data\":{\"createdAt\":null,\"id\":46,\"logoUrl\":null,\"name\":\"????\",\"products\":null,\"slug\":\"te",
+        "url":  "/api/admin/brands",
+        "group":  "Brands"
+    },
+    {
+        "status":  200,
+        "ms":  5,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"content\":\"    \",\"empty\":false,\"first\":true,\"last\":true,\"number\":0,\"numberOfElem",
+        "url":  "/api/admin/coupons?page=0\u0026size=20",
+        "group":  "Coupons"
+    },
+    {
+        "status":  200,
+        "ms":  9,
+        "note":  "创建优惠券",
+        "method":  "POST",
+        "sample":  "{\"code\":200,\"data\":{\"code\":\"TEST2026\",\"createdAt\":null,\"expiresAt\":null,\"id\":14,\"minOrderAmount\":100",
+        "url":  "/api/admin/coupons",
+        "group":  "Coupons"
+    },
+    {
+        "status":  200,
+        "ms":  5,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"content\":\"\",\"empty\":true,\"first\":true,\"last\":true,\"number\":0,\"numberOfElements\"",
+        "url":  "/api/admin/users?page=0\u0026size=20",
+        "group":  "Users"
+    },
+    {
+        "status":  200,
+        "ms":  6,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"content\":\"\",\"empty\":false,\"first\":true,\"last\":true,\"number\":0,\"numberOfElements",
+        "url":  "/api/admin/subscribers?page=0\u0026size=20",
+        "group":  "Subscribers"
+    },
+    {
+        "status":  200,
+        "ms":  6,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"inactive\":0,\"total\":1,\"active\":1},\"message\":\"success\",\"success\":true}",
+        "url":  "/api/admin/subscribers/stats",
+        "group":  "Subscribers"
+    },
+    {
+        "status":  200,
+        "ms":  6,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":[\"@{apiType=REST; code=ups; contactPhone=1-800-742-5877; createdAt=2026-06-30T12:",
+        "url":  "/api/admin/shipping/carriers?page=0\u0026size=20",
+        "group":  "Shipping"
+    },
+    {
+        "status":  500,
+        "ms":  197,
+        "note":  "失败: 远程服务器返回错误: (500) 内部服务器错误。",
+        "method":  "GET",
+        "sample":  "",
+        "url":  "/api/admin/shipping/templates?page=0\u0026size=20",
+        "group":  "Shipping"
+    },
+    {
+        "status":  200,
+        "ms":  6,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":[\"@{connected=False; createdAt=2026-07-03T13:02:51.102303Z; displayName=WeChat Pa",
+        "url":  "/api/admin/payment/gateways?page=0\u0026size=20",
+        "group":  "Payment"
+    },
+    {
+        "status":  200,
+        "ms":  6,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"content\":\"\",\"first\":false,\"last\":true,\"number\":-1,\"size\":20,\"totalElements\":0,\"",
+        "url":  "/api/admin/payment/transactions?page=0\u0026size=20",
+        "group":  "Payment"
+    },
+    {
+        "status":  200,
+        "ms":  6,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"content\":\"\",\"first\":false,\"last\":true,\"number\":-1,\"size\":20,\"totalElements\":0,\"",
+        "url":  "/api/admin/reviews?page=0\u0026size=20",
+        "group":  "Reviews"
+    },
+    {
+        "status":  200,
+        "ms":  9,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"total\":0,\"approved\":0,\"rejected\":0,\"pending\":0,\"average_rating\":0.0},\"message\":",
+        "url":  "/api/admin/reviews/stats",
+        "group":  "Reviews"
+    },
+    {
+        "status":  200,
+        "ms":  6,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":[\"@{createdAt=2026-07-03T13:02:50.346389Z; discountType=FIXED; discountValue=20.0",
+        "url":  "/api/admin/promotions?page=0\u0026size=20",
+        "group":  "Marketing"
+    },
+    {
+        "status":  500,
+        "ms":  16,
+        "note":  "失败: The remote server returned an error: (500) Internal Server Error.",
+        "method":  "POST",
+        "sample":  "",
+        "url":  "/api/admin/promotions",
+        "group":  "Marketing"
+    },
+    {
+        "status":  200,
+        "ms":  7,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "\"id,name,price,stock,status,created_at\\n81,FlipBelt Running Belt,32.00,10,ACTIVE,2026-06-29 21:09:29",
+        "url":  "/api/admin/export/products",
+        "group":  "Export"
+    },
+    {
+        "status":  200,
+        "ms":  4,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "\"id,user_id,total_amount,status,created_at\\n27,,159.00,PAID,2026-06-27 22:02:32.741106\\n26,,139.00,P",
+        "url":  "/api/admin/export/orders",
+        "group":  "Export"
+    },
+    {
+        "status":  200,
+        "ms":  4,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":[\"@{createdAt=2026-07-03T13:02:51.183030Z; description=Read-only access to analyt",
+        "url":  "/api/admin/rbac/roles?page=0\u0026size=20",
+        "group":  "RBAC"
+    },
+    {
+        "status":  200,
+        "ms":  4,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":[],\"message\":\"success\",\"success\":true}",
+        "url":  "/api/admin/rbac/users?page=0\u0026size=20",
+        "group":  "RBAC"
+    },
+    {
+        "status":  500,
+        "ms":  10,
+        "note":  "失败: The remote server returned an error: (500) Internal Server Error.",
+        "method":  "POST",
+        "sample":  "",
+        "url":  "/api/admin/rbac/roles",
+        "group":  "RBAC"
+    },
+    {
+        "status":  200,
+        "ms":  6,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"content\":\"\",\"first\":false,\"last\":true,\"number\":-1,\"size\":20,\"totalElements\":0,\"",
+        "url":  "/api/admin/audit/logs?page=0\u0026size=20",
+        "group":  "Audit"
+    },
+    {
+        "status":  200,
+        "ms":  5,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"content\":\"\",\"first\":false,\"last\":true,\"number\":-1,\"size\":20,\"totalElements\":0,\"",
+        "url":  "/api/admin/notifications?page=0\u0026size=20",
+        "group":  "Notifications"
+    },
+    {
+        "status":  200,
+        "ms":  5,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"total\":0,\"unread\":0},\"message\":\"success\",\"success\":true}",
+        "url":  "/api/admin/notifications/stats",
+        "group":  "Notifications"
+    },
+    {
+        "status":  200,
+        "ms":  4,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":[\"@{chunkCount=0; collection=copilot_kb; content=ï»¿auto test content\\r\\n; create",
+        "url":  "/api/admin/kb/documents?page=0\u0026size=20",
+        "group":  "KnowledgeBase"
+    },
+    {
+        "status":  200,
+        "ms":  6,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":[\"@{answer=Log in to your account and visit My Orders. Tracking info appears once",
+        "url":  "/api/admin/kb/faq?page=0\u0026size=20",
+        "group":  "KnowledgeBase"
+    },
+    {
+        "status":  200,
+        "ms":  49,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"success\":true,\"data\":[\"@{id=copilot_100436e66ff84507; title=IDä¸º81çååï¼åºå­æ¹ä¸º9; crea",
+        "url":  "/api/copilot/sessions?page=0\u0026size=20",
+        "group":  "Copilot"
+    },
+    {
+        "status":  200,
+        "ms":  22,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"success\":true,\"data\":[]}",
+        "url":  "/api/copilot/operations?page=0\u0026size=20",
+        "group":  "Copilot"
+    },
+    {
+        "status":  200,
+        "ms":  5,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":[\"@{code=CNY; createdAt=2026-06-30T12:50:58.237319Z; decimals=2; enabled=True; ex",
+        "url":  "/api/admin/currencies?page=0\u0026size=20",
+        "group":  "Currencies"
+    },
+    {
+        "status":  200,
+        "ms":  10,
+        "note":  "创建货币",
+        "method":  "POST",
+        "sample":  "{\"code\":200,\"data\":{\"id\":\"48d23d86-e098-4329-912c-e59fe01761af\"},\"message\":\"åå»ºæå\",\"success\":",
+        "url":  "/api/admin/currencies",
+        "group":  "Currencies"
+    },
+    {
+        "status":  200,
+        "ms":  4,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":[\"@{createdAt=2026-06-30T12:50:58.146980Z; description=auto test v2; id=56a830ff-",
+        "url":  "/api/admin/translations/keys?page=0\u0026size=20",
+        "group":  "Translations"
+    },
+    {
+        "status":  200,
+        "ms":  5,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"locales\":\"@{en-US=}\",\"total_keys\":4},\"message\":\"success\",\"success\":true}",
+        "url":  "/api/admin/translations/stats",
+        "group":  "Translations"
+    },
+    {
+        "status":  200,
+        "ms":  4,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":[\"@{countryCode=JP; createdAt=2026-07-03T13:02:50.965451Z; enabled=True; id=b28f0",
+        "url":  "/api/admin/tax/rules?page=0\u0026size=20",
+        "group":  "Tax"
+    },
+    {
+        "status":  500,
+        "ms":  8,
+        "note":  "失败: The remote server returned an error: (500) Internal Server Error.",
+        "method":  "POST",
+        "sample":  "",
+        "url":  "/api/admin/tax/rules",
+        "group":  "Tax"
+    },
+    {
+        "status":  200,
+        "ms":  4,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":[\"@{apiType=REST; code=ups; contactPhone=1-800-742-5877; createdAt=2026-06-30T12:",
+        "url":  "/api/admin/shipping/carriers?page=0\u0026size=20",
+        "group":  "Carriers"
+    },
+    {
+        "status":  200,
+        "ms":  3,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"code\":200,\"data\":{\"descriptionTemplate\":\"Premium quality products at affordable prices. Shop now a",
+        "url":  "/api/admin/site-config",
+        "group":  "Settings"
+    },
+    {
+        "status":  200,
+        "ms":  3,
+        "note":  "OK",
+        "method":  "GET",
+        "sample":  "{\"status\":\"ok\"}",
+        "url":  "/health",
+        "group":  "AIService"
+    },
+    {
+        "status":  500,
+        "ms":  0,
+        "note":  "查询商品失败: Object reference not set to an instance of an object.",
+        "method":  "POST",
+        "sample":  "",
+        "url":  "/api/copilot/chat",
+        "group":  "Copilot"
+    },
+    {
+        "status":  500,
+        "ms":  0,
+        "note":  "查询订单失败: Object reference not set to an instance of an object.",
+        "method":  "POST",
+        "sample":  "",
+        "url":  "/api/copilot/chat",
+        "group":  "Copilot"
+    },
+    {
+        "status":  500,
+        "ms":  0,
+        "note":  "数据分析失败: Object reference not set to an instance of an object.",
+        "method":  "POST",
+        "sample":  "",
+        "url":  "/api/copilot/chat",
+        "group":  "Copilot"
+    }
+]

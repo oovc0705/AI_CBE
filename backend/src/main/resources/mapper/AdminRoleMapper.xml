@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.AdminRoleMapper">
+
+    <resultMap id="AdminRoleResultMap" type="com.example.backend.entity.AdminRole">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="display_name" property="displayName"/>
+        <result column="description" property="description"/>
+        <result column="is_system" property="isSystem"/>
+        <result column="permissions" property="permissions" typeHandler="com.example.backend.config.JsonNodeTypeHandler"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="AdminRoleResultMap">
+        SELECT * FROM admin_roles WHERE id = #{id}
+    </select>
+
+    <select id="findByName" resultMap="AdminRoleResultMap">
+        SELECT * FROM admin_roles WHERE name = #{name}
+    </select>
+
+    <select id="findAll" resultMap="AdminRoleResultMap">
+        SELECT * FROM admin_roles ORDER BY created_at DESC
+    </select>
+
+    <insert id="insert">
+        INSERT INTO admin_roles (id, name, display_name, description, is_system, permissions, created_at, updated_at)
+        VALUES (#{id}, #{name}, #{displayName}, #{description}, #{isSystem},
+                #{permissions, typeHandler=com.example.backend.config.JsonNodeTypeHandler}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE admin_roles
+        SET name = #{name},
+            display_name = #{displayName},
+            description = #{description},
+            is_system = #{isSystem},
+            permissions = #{permissions, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM admin_roles WHERE id = #{id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,6 @@
+-- ============================================
+-- ⚠️ 此目录仅供快速参考，非 source of truth
+-- 实际数据库 Schema 由 Flyway 迁移脚本管理：
+--   backend/src/main/resources/db/migration/
+-- ============================================
+-- 如需查看最新完整 Schema，请参考 Flyway V1__init 及后续迁移文件

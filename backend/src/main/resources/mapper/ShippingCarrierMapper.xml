@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.ShippingCarrierMapper">
+
+    <resultMap id="CarrierResultMap" type="com.example.backend.entity.ShippingCarrier">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="code" property="code"/>
+        <result column="logo_url" property="logoUrl"/>
+        <result column="contact_phone" property="contactPhone"/>
+        <result column="website" property="website"/>
+        <result column="tracking_url_template" property="trackingUrlTemplate"/>
+        <result column="api_type" property="apiType"/>
+        <result column="api_config" property="apiConfig" typeHandler="com.example.backend.config.JsonNodeTypeHandler"/>
+        <result column="enabled" property="enabled"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="CarrierResultMap">
+        SELECT * FROM shipping_carriers WHERE id = #{id}
+    </select>
+
+    <select id="findByCode" resultMap="CarrierResultMap">
+        SELECT * FROM shipping_carriers WHERE code = #{code}
+    </select>
+
+    <select id="findAll" resultMap="CarrierResultMap">
+        SELECT * FROM shipping_carriers
+        <where>
+            <if test="enabled != null">AND enabled = #{enabled}</if>
+        </where>
+        ORDER BY sort_order, created_at
+    </select>
+
+    <insert id="insert">
+        INSERT INTO shipping_carriers (id, name, code, logo_url, contact_phone, website, tracking_url_template, api_type, api_config, enabled, sort_order, created_at, updated_at)
+        VALUES (#{id}, #{name}, #{code}, #{logoUrl}, #{contactPhone}, #{website}, #{trackingUrlTemplate}, #{apiType},
+                #{apiConfig, typeHandler=com.example.backend.config.JsonNodeTypeHandler}, #{enabled}, #{sortOrder}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE shipping_carriers
+        SET name = #{name},
+            code = #{code},
+            logo_url = #{logoUrl},
+            contact_phone = #{contactPhone},
+            website = #{website},
+            tracking_url_template = #{trackingUrlTemplate},
+            api_type = #{apiType},
+            api_config = #{apiConfig, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+            enabled = #{enabled},
+            sort_order = #{sortOrder},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM shipping_carriers WHERE id = #{id}
+    </delete>
+
+</mapper>

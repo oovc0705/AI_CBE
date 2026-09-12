@@ -1,0 +1,238 @@
+// ============================================================
+// ⚠️ 此文件仅作数据库 Schema 可视化参考文档
+// 项目 ORM 层使用 MyBatis，不依赖 Prisma Client
+// Schema 唯一权威源: backend/src/main/resources/db/migration/
+// 如需可视化浏览 Schema，可使用: npx prisma studio
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// 1. 用户与权限模块
+// ============================================
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+}
+
+model User {
+  id            BigInt     @id @default(autoincrement())
+  email         String     @unique @db.VarChar(255)
+  passwordHash  String     @map("password_hash") @db.VarChar(255)
+  role          UserRole   @default(CUSTOMER)
+  firstName     String?    @map("first_name") @db.VarChar(100)
+  lastName      String?    @map("last_name") @db.VarChar(100)
+  avatarUrl     String?    @map("avatar_url") @db.VarChar(500)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  addresses     Address[]
+  orders        Order[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model Address {
+  id            BigInt     @id @default(autoincrement())
+  userId        BigInt     @map("user_id")
+  isDefault     Boolean    @default(false) @map("is_default")
+  // JSONB 灵活存储各国地址格式
+  addressData   Json       @default("{}") @map("address_data") @db.JsonB
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isDefault])
+  @@map("addresses")
+}
+
+// ============================================
+// 2. 商品与目录模块 (SPU + SKU)
+// ============================================
+
+model Brand {
+  id            BigInt     @id @default(autoincrement())
+  name          String     @db.VarChar(100)
+  slug          String     @unique @db.VarChar(100)
+  logoUrl       String?    @map("logo_url") @db.VarChar(500)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  products      Product[]
+
+  @@index([slug])
+  @@map("brands")
+}
+
+model Category {
+  id            BigInt     @id @default(autoincrement())
+  parentId      BigInt?    @map("parent_id")
+  // JSONB 多语言名称 {"en": "Shoes", "zh": "鞋靴", "es": "Zapatos"}
+  nameI18n      Json       @default("{}") @map("name_i18n") @db.JsonB
+  slug          String     @unique @db.VarChar(100)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  parent        Category?  @relation("CategoryParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children      Category[] @relation("CategoryParent")
+  products      Product[]
+
+  @@index([parentId])
+  @@index([slug])
+  @@index([nameI18n])
+  @@map("categories")
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+model Product {
+  id            BigInt     @id @default(autoincrement())
+  brandId       BigInt?    @map("brand_id")
+  categoryId    BigInt?    @map("category_id")
+  slug          String     @unique @db.VarChar(200)
+  // JSONB 多语言标题
+  titleI18n     Json       @default("{}") @map("title_i18n") @db.JsonB
+  // JSONB 多语言富文本详情描述 (AI 生成的内容存这里)
+  descI18n      Json       @default("{}") @map("desc_i18n") @db.JsonB
+  // JSONB SEO 元数据 {"title": "...", "description": "...", "keywords": [...]}
+  metaSeo       Json       @default("{}") @map("meta_seo") @db.JsonB
+  // JSONB 图片 URL 数组 ["url1", "url2"]
+  images        Json       @default("[]") @db.JsonB
+  status        ProductStatus @default(DRAFT)
+  // AI 向量：商品文本的向量表示，用于 AI 导购的相似商品推荐 (pgvector)
+  // Prisma 原生不支持 vector 类型，需通过 raw query 或扩展处理
+  // 这里用 Unsupported 类型占位，实际查询请使用 $queryRaw
+  embedding     Unsupported("vector(1536)")?
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  brand         Brand?     @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  category      Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  skus          ProductSku[]
+
+  @@index([brandId])
+  @@index([categoryId])
+  @@index([slug])
+  @@index([status])
+  @@index([titleI18n])
+  @@index([metaSeo])
+  @@map("products")
+}
+
+model ProductSku {
+  id            BigInt     @id @default(autoincrement())
+  productId     BigInt     @map("product_id")
+  skuCode       String     @unique @map("sku_code") @db.VarChar(100)
+  // JSONB 规格属性 {"Color": "Black", "Size": "42"}
+  attributes    Json       @default("{}") @db.JsonB
+  // 基准价格 (建议统一存 USD，前端根据汇率展示)
+  price         Decimal    @default(0.00) @db.Decimal(12, 2)
+  stock         Int        @default(0)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  product       Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems    OrderItem[]
+
+  @@index([productId])
+  @@index([attributes])
+  @@map("product_skus")
+}
+
+// ============================================
+// 3. 交易与订单模块
+// ============================================
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+model Order {
+  id                BigInt     @id @default(autoincrement())
+  orderNo           String     @unique @map("order_no") @db.VarChar(50)
+  userId            BigInt     @map("user_id")
+  totalAmount       Decimal    @default(0.00) @map("total_amount") @db.Decimal(12, 2)
+  currency          String     @default("USD") @db.VarChar(3)
+  status            OrderStatus @default(PENDING)
+  // JSONB 快照：下单时的地址快照（防止用户后续修改地址影响历史订单）
+  shippingAddress   Json       @default("{}") @map("shipping_address") @db.JsonB
+  couponId          BigInt?    @map("coupon_id")
+  discountAmount    Decimal    @default(0.00) @map("discount_amount") @db.Decimal(12, 2)
+  // 第三方支付流水号 (对接 Stripe/PayPal)
+  stripeSessionId   String?    @map("stripe_session_id") @db.VarChar(255)
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user              User       @relation(fields: [userId], references: [id])
+  items             OrderItem[]
+
+  @@index([userId])
+  @@index([orderNo])
+  @@index([status])
+  @@index([stripeSessionId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                BigInt     @id @default(autoincrement())
+  orderId           BigInt     @map("order_id")
+  skuId             BigInt     @map("sku_id")
+  // JSONB 快照：下单时的商品名称、图片、规格快照
+  productSnapshot   Json       @default("{}") @map("product_snapshot") @db.JsonB
+  price             Decimal    @default(0.00) @db.Decimal(12, 2)
+  quantity          Int        @default(1)
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order             Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sku               ProductSku @relation(fields: [skuId], references: [id])
+
+  @@index([orderId])
+  @@index([skuId])
+  @@map("order_items")
+}
+
+// ============================================
+// 4. 轻量营销模块
+// ============================================
+
+enum CouponType {
+  PERCENTAGE
+  FIXED
+}
+
+model Coupon {
+  id                BigInt     @id @default(autoincrement())
+  code              String     @unique @db.VarChar(50)
+  type              CouponType
+  value             Decimal    @default(0.00) @db.Decimal(12, 2)
+  minOrderAmount    Decimal    @default(0.00) @map("min_order_amount") @db.Decimal(12, 2)
+  usageLimit        Int        @default(0) @map("usage_limit")
+  usedCount         Int        @default(0) @map("used_count")
+  expiresAt         DateTime?  @map("expires_at") @db.Timestamptz(6)
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([code])
+  @@index([expiresAt])
+  @@map("coupons")
+}

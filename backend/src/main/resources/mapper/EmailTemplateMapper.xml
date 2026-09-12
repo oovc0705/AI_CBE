@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.EmailTemplateMapper">
+
+    <resultMap id="EmailTemplateResultMap" type="com.example.backend.entity.EmailTemplate">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="code" property="code"/>
+        <result column="subject" property="subject"/>
+        <result column="body_html" property="bodyHtml"/>
+        <result column="variables" property="variables" typeHandler="com.example.backend.config.JsonNodeTypeHandler"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="EmailTemplateResultMap">
+        SELECT * FROM email_templates WHERE id = #{id}
+    </select>
+
+    <select id="findByCode" resultMap="EmailTemplateResultMap">
+        SELECT * FROM email_templates WHERE code = #{code}
+    </select>
+
+    <select id="findAll" resultMap="EmailTemplateResultMap">
+        SELECT * FROM email_templates ORDER BY created_at DESC
+    </select>
+
+    <insert id="insert">
+        INSERT INTO email_templates (id, name, code, subject, body_html, variables, created_at, updated_at)
+        VALUES (#{id}, #{name}, #{code}, #{subject}, #{bodyHtml},
+                #{variables, typeHandler=com.example.backend.config.JsonNodeTypeHandler}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE email_templates
+        SET name = #{name},
+            code = #{code},
+            subject = #{subject},
+            body_html = #{bodyHtml},
+            variables = #{variables, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM email_templates WHERE id = #{id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.TranslationKeyMapper">
+
+    <resultMap id="TranslationKeyResultMap" type="com.example.backend.entity.TranslationKey">
+        <id column="id" property="id"/>
+        <result column="key" property="key"/>
+        <result column="namespace" property="namespace"/>
+        <result column="description" property="description"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="TranslationKeyResultMap">
+        SELECT * FROM translation_keys WHERE id = #{id}
+    </select>
+
+    <select id="findByKey" resultMap="TranslationKeyResultMap">
+        SELECT * FROM translation_keys WHERE key = #{key}
+    </select>
+
+    <select id="findAll" resultMap="TranslationKeyResultMap">
+        SELECT * FROM translation_keys
+        <where>
+            <if test="namespace != null and namespace != ''">AND namespace = #{namespace}</if>
+        </where>
+        ORDER BY namespace, key
+    </select>
+
+    <select id="findAllPaged" resultMap="TranslationKeyResultMap">
+        SELECT * FROM translation_keys
+        <where>
+            <if test="namespace != null and namespace != ''">AND namespace = #{namespace}</if>
+            <if test="keyword != null and keyword != ''">
+                AND (LOWER(key) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                     OR LOWER(description) LIKE LOWER(CONCAT('%', #{keyword}, '%')))
+            </if>
+        </where>
+        ORDER BY namespace, key
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM translation_keys
+        <where>
+            <if test="namespace != null and namespace != ''">AND namespace = #{namespace}</if>
+            <if test="keyword != null and keyword != ''">
+                AND (LOWER(key) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+                     OR LOWER(description) LIKE LOWER(CONCAT('%', #{keyword}, '%')))
+            </if>
+        </where>
+    </select>
+
+    <insert id="insert">
+        INSERT INTO translation_keys (id, key, namespace, description, created_at, updated_at)
+        VALUES (#{id}, #{key}, #{namespace}, #{description}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE translation_keys
+        SET key = #{key},
+            namespace = #{namespace},
+            description = #{description},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM translation_keys WHERE id = #{id}
+    </delete>
+
+</mapper>

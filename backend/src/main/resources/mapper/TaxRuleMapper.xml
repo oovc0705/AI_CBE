@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.TaxRuleMapper">
+
+    <resultMap id="TaxRuleResultMap" type="com.example.backend.entity.TaxRule">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="country_code" property="countryCode"/>
+        <result column="region_code" property="regionCode"/>
+        <result column="tax_rate" property="taxRate"/>
+        <result column="tax_type" property="taxType"/>
+        <result column="is_shipping_taxable" property="isShippingTaxable"/>
+        <result column="enabled" property="enabled"/>
+        <result column="priority" property="priority"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="TaxRuleResultMap">
+        SELECT * FROM tax_rules WHERE id = #{id}
+    </select>
+
+    <select id="findAll" resultMap="TaxRuleResultMap">
+        SELECT * FROM tax_rules
+        <where>
+            <if test="countryCode != null and countryCode != ''">AND country_code = #{countryCode}</if>
+            <if test="enabled != null">AND enabled = #{enabled}</if>
+        </where>
+        ORDER BY priority DESC, created_at DESC
+    </select>
+
+    <insert id="insert">
+        INSERT INTO tax_rules (id, name, country_code, region_code, tax_rate, tax_type, is_shipping_taxable, enabled, priority, created_at, updated_at)
+        VALUES (#{id}, #{name}, #{countryCode}, #{regionCode}, #{taxRate}, #{taxType}, #{isShippingTaxable}, #{enabled}, #{priority}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE tax_rules
+        SET name = #{name},
+            country_code = #{countryCode},
+            region_code = #{regionCode},
+            tax_rate = #{taxRate},
+            tax_type = #{taxType},
+            is_shipping_taxable = #{isShippingTaxable},
+            enabled = #{enabled},
+            priority = #{priority},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM tax_rules WHERE id = #{id}
+    </delete>
+
+</mapper>

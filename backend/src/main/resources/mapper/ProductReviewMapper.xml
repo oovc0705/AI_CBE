@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.ProductReviewMapper">
+
+    <resultMap id="ProductReviewResultMap" type="com.example.backend.entity.ProductReview">
+        <id column="id" property="id"/>
+        <result column="product_id" property="productId"/>
+        <result column="product_name" property="productName"/>
+        <result column="user_id" property="userId"/>
+        <result column="user_name" property="userName"/>
+        <result column="order_id" property="orderId"/>
+        <result column="rating" property="rating"/>
+        <result column="title" property="title"/>
+        <result column="content" property="content"/>
+        <result column="images" property="images" typeHandler="com.example.backend.config.JsonNodeTypeHandler"/>
+        <result column="status" property="status"/>
+        <result column="merchant_reply" property="merchantReply"/>
+        <result column="replied_at" property="repliedAt"/>
+        <result column="replied_by" property="repliedBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="ProductReviewResultMap">
+        SELECT * FROM product_reviews WHERE id = #{id}
+    </select>
+
+    <select id="findAll" resultMap="ProductReviewResultMap">
+        SELECT * FROM product_reviews
+        <where>
+            <if test="productId != null and productId != ''">AND product_id = #{productId}</if>
+            <if test="status != null and status != ''">AND status = #{status}</if>
+        </where>
+        ORDER BY created_at DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM product_reviews
+        <where>
+            <if test="productId != null and productId != ''">AND product_id = #{productId}</if>
+            <if test="status != null and status != ''">AND status = #{status}</if>
+        </where>
+    </select>
+
+    <insert id="insert">
+        INSERT INTO product_reviews (id, product_id, product_name, user_id, user_name, order_id, rating, title, content, images, status, merchant_reply, replied_at, replied_by, created_at, updated_at)
+        VALUES (#{id}, #{productId}, #{productName}, #{userId}, #{userName}, #{orderId}, #{rating}, #{title}, #{content},
+                #{images, typeHandler=com.example.backend.config.JsonNodeTypeHandler}, #{status}, #{merchantReply}, #{repliedAt}, #{repliedBy}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE product_reviews
+        SET product_id = #{productId},
+            product_name = #{productName},
+            user_id = #{userId},
+            user_name = #{userName},
+            order_id = #{orderId},
+            rating = #{rating},
+            title = #{title},
+            content = #{content},
+            images = #{images, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+            status = #{status},
+            merchant_reply = #{merchantReply},
+            replied_at = #{repliedAt},
+            replied_by = #{repliedBy},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM product_reviews WHERE id = #{id}
+    </delete>
+
+    <select id="findAllForExport" resultType="java.util.Map">
+        SELECT id, product_id, product_name, user_id, user_name, rating, title, content, status, merchant_reply, created_at
+        FROM product_reviews
+        ORDER BY created_at DESC
+    </select>
+
+</mapper>

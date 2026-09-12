@@ -1,0 +1,97 @@
+# ===== OS / IDE =====
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*~
+
+# ===== 环境与密钥 =====
+.env
+.env.local
+.env.*.local
+*.key
+secrets/
+*.pem
+*.crt
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# ===== Java / Maven =====
+target/
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*.log
+replay_pid*.log
+*.log
+.classpath.argfile
+
+# ===== Node / Next.js / Umi =====
+node_modules/
+.next/
+.turbo/
+.swc/
+dist/
+out/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.vercel/
+
+# ===== Playwright / 测试产物 =====
+test-results/
+playwright-report/
+playwright/.cache/
+public/test-results.json
+
+# ===== 数据 / 缓存 / 向量库 =====
+ai-service/data/
+ai-service/models/
+ai-service/chroma/
+ai-service/chroma_data/
+data/
+*.db
+*.sqlite
+*.sqlite3
+chroma/
+
+# ===== 通用日志 =====
+logs/
+*.log
+
+# ===== Docker / 系统 =====
+*.pid
+.corefile
+
+# ===== 本地调试 / 工具产物 =====
+.dbg/
+.trae/
+.audit-tmp/

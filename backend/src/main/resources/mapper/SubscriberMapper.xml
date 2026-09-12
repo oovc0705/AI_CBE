@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.SubscriberMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.backend.entity.Subscriber">
+        <id column="id" property="id"/>
+        <result column="email" property="email"/>
+        <result column="source" property="source"/>
+        <result column="active" property="active"/>
+        <result column="subscribed_at" property="subscribedAt"/>
+        <result column="unsubscribed_at" property="unsubscribedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT * FROM subscribers WHERE id = #{id}
+    </select>
+
+    <select id="findByEmail" resultMap="BaseResultMap">
+        SELECT * FROM subscribers WHERE email = #{email}
+    </select>
+
+    <select id="findAll" resultMap="BaseResultMap">
+        SELECT * FROM subscribers ORDER BY created_at DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="findByActive" resultMap="BaseResultMap">
+        SELECT * FROM subscribers WHERE active = #{active} ORDER BY created_at DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM subscribers
+    </select>
+
+    <select id="countByActive" resultType="long">
+        SELECT COUNT(*) FROM subscribers WHERE active = #{active}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO subscribers (email, source, active, subscribed_at, created_at, updated_at)
+        VALUES (#{email}, #{source}, COALESCE(#{active}, true), COALESCE(#{subscribedAt}, NOW()), NOW(), NOW())
+    </insert>
+
+    <update id="update">
+        UPDATE subscribers
+        SET email = #{email},
+            source = #{source},
+            active = #{active},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateActive">
+        UPDATE subscribers
+        SET active = #{active},
+            unsubscribed_at = CASE WHEN #{active} = false THEN NOW() ELSE NULL END,
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+</mapper>

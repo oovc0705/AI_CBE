@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.TranslationValueMapper">
+
+    <resultMap id="TranslationValueResultMap" type="com.example.backend.entity.TranslationValue">
+        <id column="id" property="id"/>
+        <result column="key_id" property="keyId"/>
+        <result column="locale" property="locale"/>
+        <result column="value" property="value"/>
+        <result column="is_translated" property="isTranslated"/>
+        <result column="updated_by" property="updatedBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="TranslationValueResultMap">
+        SELECT * FROM translation_values WHERE id = #{id}
+    </select>
+
+    <select id="findByKeyId" resultMap="TranslationValueResultMap">
+        SELECT * FROM translation_values WHERE key_id = #{keyId} ORDER BY locale
+    </select>
+
+    <select id="findAll" resultMap="TranslationValueResultMap">
+        SELECT * FROM translation_values ORDER BY key_id, locale
+    </select>
+
+    <select id="countByLocale" resultType="java.util.Map">
+        SELECT locale,
+               COUNT(*) AS total,
+               SUM(CASE WHEN is_translated THEN 1 ELSE 0 END) AS translated
+        FROM translation_values
+        GROUP BY locale
+    </select>
+
+    <select id="findByKeyIdAndLocale" resultMap="TranslationValueResultMap">
+        SELECT * FROM translation_values WHERE key_id = #{keyId} AND locale = #{locale}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO translation_values (id, key_id, locale, value, is_translated, updated_by, created_at, updated_at)
+        VALUES (#{id}, #{keyId}, #{locale}, #{value}, #{isTranslated}, #{updatedBy}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE translation_values
+        SET key_id = #{keyId},
+            locale = #{locale},
+            value = #{value},
+            is_translated = #{isTranslated},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM translation_values WHERE id = #{id}
+    </delete>
+
+</mapper>

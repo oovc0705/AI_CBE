@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.SiteConfigMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.backend.entity.SiteConfig">
+        <id column="id" property="id"/>
+        <result column="title_suffix" property="titleSuffix"/>
+        <result column="description_template" property="descriptionTemplate"/>
+        <result column="og_image_url" property="ogImageUrl"/>
+        <result column="ga_measurement_id" property="gaMeasurementId"/>
+        <result column="twitter_handle" property="twitterHandle"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT * FROM site_config WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="false">
+        INSERT INTO site_config (id, title_suffix, description_template, og_image_url, ga_measurement_id, twitter_handle, updated_at)
+        VALUES (#{id}, #{titleSuffix}, #{descriptionTemplate}, #{ogImageUrl}, #{gaMeasurementId}, #{twitterHandle}, #{updatedAt})
+        ON CONFLICT (id) DO UPDATE SET
+            title_suffix = EXCLUDED.title_suffix,
+            description_template = EXCLUDED.description_template,
+            og_image_url = EXCLUDED.og_image_url,
+            ga_measurement_id = EXCLUDED.ga_measurement_id,
+            twitter_handle = EXCLUDED.twitter_handle,
+            updated_at = EXCLUDED.updated_at
+    </insert>
+
+    <update id="update">
+        UPDATE site_config
+        SET title_suffix = #{titleSuffix},
+            description_template = #{descriptionTemplate},
+            og_image_url = #{ogImageUrl},
+            ga_measurement_id = #{gaMeasurementId},
+            twitter_handle = #{twitterHandle},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+</mapper>

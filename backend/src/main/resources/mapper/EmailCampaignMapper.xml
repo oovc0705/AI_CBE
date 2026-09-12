@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.EmailCampaignMapper">
+
+    <resultMap id="EmailCampaignResultMap" type="com.example.backend.entity.EmailCampaign">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="template_id" property="templateId"/>
+        <result column="subject" property="subject"/>
+        <result column="body_html" property="bodyHtml"/>
+        <result column="status" property="status"/>
+        <result column="recipient_count" property="recipientCount"/>
+        <result column="sent_count" property="sentCount"/>
+        <result column="scheduled_at" property="scheduledAt"/>
+        <result column="sent_at" property="sentAt"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="EmailCampaignResultMap">
+        SELECT * FROM email_campaigns WHERE id = #{id}
+    </select>
+
+    <select id="findAll" resultMap="EmailCampaignResultMap">
+        SELECT * FROM email_campaigns
+        <where>
+            <if test="status != null and status != ''">AND status = #{status}</if>
+        </where>
+        ORDER BY created_at DESC
+    </select>
+
+    <insert id="insert">
+        INSERT INTO email_campaigns (id, name, template_id, subject, body_html, status, recipient_count, sent_count, scheduled_at, sent_at, created_by, created_at, updated_at)
+        VALUES (#{id}, #{name}, #{templateId}, #{subject}, #{bodyHtml}, #{status}, #{recipientCount}, #{sentCount}, #{scheduledAt}, #{sentAt}, #{createdBy}, #{createdAt}, #{updatedAt})
+    </insert>
+
+    <update id="update">
+        UPDATE email_campaigns
+        SET name = #{name},
+            template_id = #{templateId},
+            subject = #{subject},
+            body_html = #{bodyHtml},
+            status = #{status},
+            recipient_count = #{recipientCount},
+            sent_count = #{sentCount},
+            scheduled_at = #{scheduledAt},
+            sent_at = #{sentAt},
+            created_by = #{createdBy},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM email_campaigns WHERE id = #{id}
+    </delete>
+
+</mapper>

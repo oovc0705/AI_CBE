@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.PaymentMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.backend.entity.Payment">
+        <id column="id" property="id"/>
+        <result column="order_id" property="orderId"/>
+        <result column="payment_method" property="paymentMethod"/>
+        <result column="amount" property="amount"/>
+        <result column="currency" property="currency"/>
+        <result column="transaction_no" property="transactionNo"/>
+        <result column="status" property="status"/>
+        <result column="provider_message" property="providerMessage"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT * FROM payments WHERE id = #{id}
+    </select>
+
+    <select id="findByOrderId" resultMap="BaseResultMap">
+        SELECT * FROM payments WHERE order_id = #{orderId} ORDER BY created_at DESC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO payments (order_id, payment_method, amount, currency, transaction_no, status, provider_message)
+        VALUES (
+            #{orderId},
+            #{paymentMethod},
+            #{amount},
+            #{currency},
+            #{transactionNo},
+            #{status},
+            #{providerMessage}
+        )
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE payments
+        SET status = #{status},
+            transaction_no = COALESCE(#{transactionNo}, transaction_no),
+            provider_message = COALESCE(#{providerMessage}, provider_message)
+        WHERE id = #{id}
+    </update>
+</mapper>

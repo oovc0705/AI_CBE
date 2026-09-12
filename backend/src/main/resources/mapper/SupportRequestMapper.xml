@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.SupportRequestMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.backend.entity.SupportRequest">
+        <id column="id" property="id"/>
+        <result column="order_id" property="orderId"/>
+        <result column="user_id" property="userId"/>
+        <result column="type" property="type"/>
+        <result column="subject" property="subject"/>
+        <result column="message" property="message"/>
+        <result column="status" property="status"/>
+        <result column="priority" property="priority"/>
+        <result column="contact_email" property="contactEmail"/>
+        <result column="admin_reply" property="adminReply"/>
+        <result column="replied_at" property="repliedAt"/>
+        <result column="replied_by" property="repliedBy"/>
+        <result column="ai_suggested_reply" property="aiSuggestedReply"/>
+        <result column="closed_at" property="closedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <resultMap id="DetailResultMap" type="com.example.backend.entity.SupportRequest" extends="BaseResultMap">
+        <result column="user_email" property="userEmail"/>
+        <result column="order_no" property="orderNo"/>
+    </resultMap>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT * FROM support_requests WHERE id = #{id}
+    </select>
+
+    <select id="findDetailById" resultMap="DetailResultMap">
+        SELECT sr.*, u.email as user_email, o.order_no
+        FROM support_requests sr
+        LEFT JOIN users u ON sr.user_id = u.id
+        LEFT JOIN orders o ON sr.order_id = o.id
+        WHERE sr.id = #{id}
+    </select>
+
+    <select id="findByOrderId" resultMap="BaseResultMap">
+        SELECT * FROM support_requests WHERE order_id = #{orderId} ORDER BY created_at DESC
+    </select>
+
+    <select id="findAll" resultMap="DetailResultMap">
+        SELECT sr.*, u.email as user_email, o.order_no
+        FROM support_requests sr
+        LEFT JOIN users u ON sr.user_id = u.id
+        LEFT JOIN orders o ON sr.order_id = o.id
+        <where>
+            <if test="status != null and status != ''">
+                AND sr.status = #{status}
+            </if>
+            <if test="type != null and type != ''">
+                AND sr.type = #{type}
+            </if>
+            <if test="priority != null and priority != ''">
+                AND sr.priority = #{priority}
+            </if>
+        </where>
+        ORDER BY
+            CASE sr.priority
+                WHEN 'URGENT' THEN 1
+                WHEN 'HIGH' THEN 2
+                WHEN 'NORMAL' THEN 3
+                WHEN 'LOW' THEN 4
+                END ASC,
+            sr.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM support_requests sr
+        <where>
+            <if test="status != null and status != ''">
+                AND sr.status = #{status}
+            </if>
+            <if test="type != null and type != ''">
+                AND sr.type = #{type}
+            </if>
+            <if test="priority != null and priority != ''">
+                AND sr.priority = #{priority}
+            </if>
+        </where>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO support_requests (order_id, user_id, type, subject, message, priority, contact_email)
+        VALUES (#{orderId}, #{userId}, #{type}, #{subject}, #{message}, #{priority}, #{contactEmail})
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE support_requests
+        SET status = #{status},
+            closed_at = #{closedAt},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="reply">
+        UPDATE support_requests
+        SET admin_reply = #{adminReply},
+            replied_by = #{repliedBy},
+            replied_at = #{repliedAt},
+            status = 'IN_PROGRESS',
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateAiSuggestedReply">
+        UPDATE support_requests
+        SET ai_suggested_reply = #{aiSuggestedReply},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <select id="countByStatus" resultType="long">
+        SELECT COUNT(*) FROM support_requests WHERE status = #{status}
+    </select>
+
+</mapper>

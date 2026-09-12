@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.UserMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.backend.entity.User">
+        <id column="id" property="id"/>
+        <result column="email" property="email"/>
+        <result column="password_hash" property="passwordHash"/>
+        <result column="role" property="role" javaType="com.example.backend.entity.UserRole" typeHandler="com.example.backend.config.UserRoleTypeHandler"/>
+        <result column="username" property="username"/>
+        <result column="first_name" property="firstName"/>
+        <result column="last_name" property="lastName"/>
+        <result column="phone" property="phone"/>
+        <result column="avatar_url" property="avatarUrl"/>
+        <result column="language" property="language"/>
+        <result column="currency" property="currency"/>
+        <result column="member_level" property="memberLevel"/>
+        <result column="points" property="points"/>
+        <result column="preferences" property="preferences" typeHandler="com.example.backend.config.JsonNodeTypeHandler"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT * FROM users WHERE id = #{id}
+    </select>
+
+    <select id="findByEmail" resultMap="BaseResultMap">
+        SELECT * FROM users WHERE email = #{email}
+    </select>
+
+    <select id="findByUsername" resultMap="BaseResultMap">
+        SELECT * FROM users WHERE username = #{username}
+    </select>
+
+    <select id="findAll" resultMap="BaseResultMap">
+        SELECT * FROM users ORDER BY created_at DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM users
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO users (email, username, password_hash, role, first_name, last_name, phone, avatar_url, 
+                           language, currency, member_level, points, preferences)
+        VALUES (#{email}, #{username}, #{passwordHash}, #{role}, #{firstName}, #{lastName}, #{phone}, #{avatarUrl},
+                #{language}, #{currency}, #{memberLevel}, #{points}, 
+                #{preferences, typeHandler=com.example.backend.config.JsonNodeTypeHandler})
+    </insert>
+
+    <update id="update">
+        UPDATE users
+        SET email = #{email},
+            username = #{username},
+            password_hash = #{passwordHash},
+            role = #{role},
+            first_name = #{firstName},
+            last_name = #{lastName},
+            phone = #{phone},
+            avatar_url = #{avatarUrl},
+            language = #{language},
+            currency = #{currency},
+            member_level = #{memberLevel},
+            points = #{points},
+            preferences = #{preferences, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateProfile">
+        UPDATE users
+        SET first_name = #{firstName},
+            last_name = #{lastName},
+            phone = #{phone},
+            avatar_url = #{avatarUrl},
+            language = #{language},
+            currency = #{currency},
+            preferences = #{preferences, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM users WHERE id = #{id}
+    </delete>
+
+    <select id="findAllForExport" resultType="java.util.Map">
+        SELECT id, username, email, role, first_name, last_name, created_at FROM users ORDER BY created_at DESC
+    </select>
+</mapper>

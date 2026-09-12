@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.BrandMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.backend.entity.Brand">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="slug" property="slug"/>
+        <result column="logo_url" property="logoUrl"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="findById" resultMap="BaseResultMap">
+        SELECT * FROM brands WHERE id = #{id}
+    </select>
+
+    <select id="findBySlug" resultMap="BaseResultMap">
+        SELECT * FROM brands WHERE slug = #{slug}
+    </select>
+
+    <select id="findAll" resultMap="BaseResultMap">
+        SELECT * FROM brands ORDER BY created_at DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM brands
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO brands (name, slug, logo_url)
+        VALUES (#{name}, #{slug}, #{logoUrl})
+    </insert>
+
+    <update id="update">
+        UPDATE brands
+        SET name = #{name},
+            slug = #{slug},
+            logo_url = #{logoUrl}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM brands WHERE id = #{id}
+    </delete>
+</mapper>

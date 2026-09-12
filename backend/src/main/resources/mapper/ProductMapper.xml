@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.backend.mapper.ProductMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.backend.entity.Product">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="description" property="description"/>
+        <result column="price" property="price"/>
+        <result column="image_url" property="imageUrl"/>
+        <result column="category" property="category"/>
+        <result column="brand_id" property="brandId"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="slug" property="slug"/>
+        <result column="status" property="status"/>
+        <result column="title_i18n" property="titleI18n"
+                typeHandler="com.example.backend.config.JsonNodeTypeHandler"/>
+        <result column="desc_i18n" property="descI18n"
+                typeHandler="com.example.backend.config.JsonNodeTypeHandler"/>
+        <result column="meta_seo" property="metaSeo"
+                typeHandler="com.example.backend.config.JsonNodeTypeHandler"/>
+        <result column="images" property="images"
+                typeHandler="com.example.backend.config.JsonNodeTypeHandler"/>
+        <result column="brand" property="brand"/>
+        <result column="brand_logo_url" property="brandLogoUrl"/>
+        <result column="stock" property="stock"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="selectWithBrand">
+        SELECT p.*, b.name AS brand, b.logo_url AS brand_logo_url,
+               COALESCE((SELECT SUM(ps.stock) FROM product_skus ps WHERE ps.product_id = p.id), 0) AS stock
+        FROM products p
+        LEFT JOIN brands b ON b.id = p.brand_id
+    </sql>
+
+    <sql id="fromProductsWithBrand">
+        FROM products p LEFT JOIN brands b ON b.id = p.brand_id
+    </sql>
+
+    <select id="findById" resultMap="BaseResultMap">
+        <include refid="selectWithBrand"/> WHERE p.id = #{id}
+    </select>
+
+    <select id="findBySlug" resultMap="BaseResultMap">
+        <include refid="selectWithBrand"/> WHERE p.slug = #{slug}
+    </select>
+
+    <select id="findByIds" resultMap="BaseResultMap">
+        <include refid="selectWithBrand"/> WHERE p.id IN
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <select id="findAll" resultMap="BaseResultMap">
+        <include refid="selectWithBrand"/> ORDER BY p.id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM products
+    </select>
+
+    <select id="findByNameKeyword" resultMap="BaseResultMap">
+        <include refid="selectWithBrand"/> WHERE LOWER(p.name) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+        ORDER BY p.id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByNameKeyword" resultType="long">
+        SELECT COUNT(*) FROM products WHERE LOWER(name) LIKE LOWER(CONCAT('%', #{keyword}, '%'))
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO products (name, description, price, image_url, category,
+                              brand_id, category_id, slug, title_i18n, desc_i18n,
+                              meta_seo, images, status)
+        VALUES (#{name}, #{description}, #{price}, #{imageUrl}, #{category},
+                #{brandId}, #{categoryId}, #{slug},
+                #{titleI18n, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+                #{descI18n, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+                #{metaSeo, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+                #{images, typeHandler=com.example.backend.config.JsonNodeTypeHandler},
+                #{status})
+    </insert>
+
+    <update id="update">
+        UPDATE products
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="price != null">price = #{price},</if>
+            <if test="imageUrl != null">image_url = #{imageUrl},</if>
+            <if test="category != null">category = #{category},</if>
+            <if test="brandId != null">brand_id = #{brandId},</if>
+            <if test="categoryId != null">category_id = #{categoryId},</if>
+            <if test="slug != null">slug = #{slug},</if>
+            <if test="titleI18n != null">title_i18n = #{titleI18n, typeHandler=com.example.backend.config.JsonNodeTypeHandler},</if>
+            <if test="descI18n != null">desc_i18n = #{descI18n, typeHandler=com.example.backend.config.JsonNodeTypeHandler},</if>
+            <if test="metaSeo != null">meta_seo = #{metaSeo, typeHandler=com.example.backend.config.JsonNodeTypeHandler},</if>
+            <if test="images != null">images = #{images, typeHandler=com.example.backend.config.JsonNodeTypeHandler},</if>
+            <if test="status != null">status = #{status},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM products WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByIds">
+        DELETE FROM products WHERE id IN
+        <foreach item="id" collection="ids" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <select id="findAllSitemapData" resultType="com.example.backend.dto.ProductSitemapDto">
+        SELECT id, updated_at AS updatedAt FROM products WHERE status = 'ACTIVE'
+    </select>
+
+    <select id="fullTextSearch" resultMap="BaseResultMap">
+        <include refid="selectWithBrand"/> WHERE
+        <if test="q != null and q != ''">p.search_vector @@ plainto_tsquery('english', #{q}) AND</if>
+        <if test="category != null and category != ''">p.category = #{category} AND</if>
+        <if test="brands != null and !brands.isEmpty()">b.name IN
+            <foreach item="brand" collection="brands" open="(" separator="," close=")">#{brand}</foreach>
+            AND
+        </if>
+        <if test="minPrice != null">p.price &gt;= #{minPrice} AND</if>
+        <if test="maxPrice != null">p.price &lt;= #{maxPrice} AND</if>
+        1=1
+        ORDER BY
+        <choose>
+            <when test="sort == 'price_asc'">p.price ASC</when>
+            <when test="sort == 'price_desc'">p.price DESC</when>
+            <when test="sort == 'newest'">p.created_at DESC</when>
+            <when test="sort == 'relevance' and q != null and q != ''">
+                ts_rank(p.search_vector, plainto_tsquery('english', #{q})) DESC
+            </when>
+            <otherwise>p.id DESC</otherwise>
+        </choose>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countFullTextSearch" resultType="long">
+        SELECT COUNT(*) <include refid="fromProductsWithBrand"/> WHERE
+        <if test="q != null and q != ''">p.search_vector @@ plainto_tsquery('english', #{q}) AND</if>
+        <if test="category != null and category != ''">p.category = #{category} AND</if>
+        <if test="brands != null and !brands.isEmpty()">b.name IN
+            <foreach item="brand" collection="brands" open="(" separator="," close=")">#{brand}</foreach>
+            AND
+        </if>
+        <if test="minPrice != null">p.price &gt;= #{minPrice} AND</if>
+        <if test="maxPrice != null">p.price &lt;= #{maxPrice} AND</if>
+        1=1
+    </select>
+
+    <select id="categoryFacets" resultType="java.util.Map">
+        SELECT p.category AS "name", count(*) AS "count"
+        <include refid="fromProductsWithBrand"/>
+        WHERE p.category IS NOT NULL AND p.category != ''
+        <if test="q != null and q != ''">AND p.search_vector @@ plainto_tsquery('english', #{q})</if>
+        <if test="minPrice != null">AND p.price &gt;= #{minPrice}</if>
+        <if test="maxPrice != null">AND p.price &lt;= #{maxPrice}</if>
+        <if test="brands != null and !brands.isEmpty()">AND b.name IN
+            <foreach item="brand" collection="brands" open="(" separator="," close=")">#{brand}</foreach>
+        </if>
+        GROUP BY p.category ORDER BY count(*) DESC
+    </select>
+
+    <select id="priceRangeFacets" resultType="java.util.Map">
+        SELECT
+          CASE
+            WHEN p.price &lt; 50 THEN '0-50'
+            WHEN p.price &gt;= 50 AND p.price &lt; 100 THEN '50-100'
+            WHEN p.price &gt;= 100 AND p.price &lt; 500 THEN '100-500'
+            ELSE '500+'
+          END AS "name",
+          count(*) AS "count"
+        <include refid="fromProductsWithBrand"/>
+        WHERE
+        <if test="q != null and q != ''">p.search_vector @@ plainto_tsquery('english', #{q}) AND</if>
+        <if test="category != null and category != ''">p.category = #{category} AND</if>
+        <if test="brands != null and !brands.isEmpty()">b.name IN
+            <foreach item="brand" collection="brands" open="(" separator="," close=")">#{brand}</foreach>
+            AND
+        </if>
+        1=1
+        GROUP BY 1 ORDER BY MIN(p.price)
+    </select>
+
+    <select id="findAllCategories" resultType="string">
+        SELECT DISTINCT category FROM products WHERE category IS NOT NULL ORDER BY category
+    </select>
+
+    <select id="findAllBrands" resultType="java.util.Map">
+        SELECT b.id AS "id", b.name AS "name", b.logo_url AS "logoUrl", b.slug AS "slug"
+        FROM brands b
+        ORDER BY b.name
+    </select>
+
+    <!-- Dashboard: low stock count (from product_skus summed stock, fallback to products.stock) -->
+    <select id="countLowStock" resultType="long">
+        SELECT COUNT(*) FROM (
+            SELECT p.id
+            FROM products p
+            LEFT JOIN (
+                SELECT product_id, COALESCE(SUM(stock), 0) AS total_stock
+                FROM product_skus
+                GROUP BY product_id
+            ) ps ON p.id = ps.product_id
+            WHERE COALESCE(ps.total_stock, 0) &lt;= #{threshold}
+        ) low_stock
+    </select>
+
+    <select id="findAllForExport" resultType="java.util.Map">
+        SELECT p.id, p.name, p.price, p.status, p.created_at,
+               COALESCE((SELECT SUM(ps.stock) FROM product_skus ps WHERE ps.product_id = p.id), 0) AS stock
+        FROM products p ORDER BY p.created_at DESC
+    </select>
+
+</mapper>
