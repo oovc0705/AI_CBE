@@ -144,7 +144,10 @@ async def list_copilot_operations(
         return _ok(_paginate(total, page, size, ops))
     finally:
         if token_ctx is not None:
-            auth_token_context.reset
+            try:
+                auth_token_context.reset(token_ctx)
+            except (ValueError, LookupError):
+                pass
 
 
 @router.delete("/sessions/{session_id}")

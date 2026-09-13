@@ -25,13 +25,13 @@
 
 **端口冲突已知**：Admin dev 与 AI 服务都默认 8000，Admin 实际跑 8080。
 
-## 3. 当前真实运行状态（2026-09-12 审查结束时）
+## 3. 当前真实运行状态（2026-09-13 更新）
 
-- **版本管理**：仓库已建立提交（初始导入 + 审查修复两个 commit）；`storefront/` 已**平铺纳入根仓**（不再是 submodule），嵌套 `.git` 备份在仓库外 `D:\storefront-nested-git-backup-20260912`；`.dbg/`、`.trae/`、`.audit-tmp/` 已加入 `.gitignore`；
-- **基础设施**：`ai_cbe_postgres` / `ai_cbe_redis` 容器 healthy 并**保留运行**（数据卷为本次审查新建，含 Flyway 迁移 + `DataInitializer` 种子数据 + 联调脚本写入的数据）；
-- **后端**：验证期间多次启动于 8081，**验证结束后进程已停止**（8081 无监听）；`mvnw test` → **24 项单元测试全绿**；临时日志与令牌目录 `.audit-tmp/` 已删除；验证用的 2 条测试订单已从库中删除；
-- **AI 服务**：`ai-service/venv` 只有 pip/setuptools，**依赖未安装**（缺 httpx/litellm/fastapi 等），因此 Python 侧改动只做了 `py_compile` 语法检查 + 桩件隔离验证，**未真实启动**；
-- **Admin / Storefront**：未启动；Storefront 改动仅过 `tsc --noEmit`，**未做浏览器实测**；
+- **版本管理**：仓库已建立三轮提交（初始导入 → 审查修复 → C 端账户体系与上线前置）；`storefront/` 已**平铺纳入根仓**（不再是 submodule），嵌套 `.git` 备份在仓库外 `D:\storefront-nested-git-backup-20260912`；`.dbg/`、`.trae/`、`.audit-tmp/` 已加入 `.gitignore`；
+- **基础设施**：`ai_cbe_postgres` / `ai_cbe_redis` 容器 healthy（数据卷为本次审查新建，含 Flyway 迁移 + `DataInitializer` 种子数据 + 联调脚本写入的数据）；postgres 内含 `ecommerce`（业务）与 `ai_cbe`（Copilot 历史）两个库；
+- **后端**：可启动于 8081（`Environment validation passed`，`JWT_SECRET`/`DEV_LOGIN_FALLBACK=true` 读自 `backend/.env`）；`mvnw test` → **24 项单元测试全绿**；
+- **AI 服务**：`ai-service/.venv`（Python 3.12）已装**完整运行依赖**（fastapi/uvicorn/httpx/litellm/sqlalchemy/asyncpg/redis/chromadb…；**未装** sentence-transformers/torch——embedding 走云端）；服务可启动于 8000，**真实 LLM + RAG 链路均已验证通过**——模型走阿里云百炼 Model Studio（对话 `dashscope/qwen3.8-flash`，向量化 `dashscope/text-embedding-v4`，key 在 `ai-service/.env` 的 `DASHSCOPE_API_KEY`）。⚠️ `MODEL_CHAT/MODEL_TOOL/MODEL_EMBEDDING` 必须带 LiteLLM 提供商前缀（`dashscope/`），裸模型名会报 "LLM Provider NOT provided"；RAG 依赖本机 Chroma 服务（8001，未入 compose，需自行起，见 §8.9）；
+- **Admin / Storefront**：均已启动并做**浏览器实测**——Admin 走通登录→仪表盘→订单→商品→Copilot 历史（数据与后端一致）；Storefront 已完成 XSS 正反对照 + 注册→下单→查单端到端；
 - 后端安全修复已通过**运行时验证**（鉴权矩阵、角色隔离、订单身份过滤、userId 落库、登录限流、404/409 语义、actuator 收敛、启动 fail-fast）。
 
 启动顺序（基础设施必须先起）：
@@ -159,7 +159,7 @@ cd ai-service && uvicorn main:app --port 8000
 - 新建 `ai-service/.venv`（Python 3.12，原 `venv` 是 3.9 且为空壳）；安装**轻量依赖集**（fastapi/uvicorn/httpx/litellm/sqlalchemy/asyncpg/redis…），**未装** chromadb 与 sentence-transformers（二者在代码中为惰性导入，RAG 功能调用时才会需要，含 torch 约 2.5GB）；
 - 服务可正常启动（`/health` 200）；
 - **工具层端到端 PASS**（`auth_token_context` 置顾客 token 后调 `query_orders`）：伪造 `user_id=999` 被服务端忽略、只返回本人 1 条订单；无 token 返回 0 条；
-- **未完成**：真实 LLM 对话无法验证——`.env` 中 StepFun key 返回 `you have no active step plan subscription`。需要有效订阅后复测 Copilot/客服全链路（含 RAG 时需装 chromadb + embedding 模型）。
+- **2026-09-13 更新：真实 LLM 链路已验证通过**（模型换成阿里云百炼 `dashscope/qwen3.8-flash`）。客服与 Copilot 两条链路均跑通真实对话 + 工具调用——详见 §8.9；RAG 仍待装 chromadb + embedding 模型（§8.8-1）。
 
 ### 8.6 浏览器实测（Storefront XSS 修复）
 
@@ -173,12 +173,27 @@ cd ai-service && uvicorn main:app --port 8000
 - Storefront `tsc --noEmit` 通过；
 - 已清理：全部测试进程、`.audit-tmp/`、Redis 限流键、本轮创建的测试账户与订单（库恢复 8 用户 / 6 订单）、ai-service `__pycache__`；postgres/redis 容器与 `ai-service/.venv` **保留**（后者是运行 AI 服务所需）。
 
-### 8.8 仍未完成（按优先级）
+### 8.8 仍未完成（按优先级，2026-09-13 更新）
 
-1. **LLM 全链路**：需有效模型订阅（StepFun 当前无 active subscription）；RAG 还需装 chromadb + BGE-m3；
-2. **Admin 后台浏览器实测**：本轮只做了接口级验证，Admin 前端（含 openapi 生成的 services）未跑 UI；
-3. **C 端账户的体验项**：忘记密码/邮箱验证仍未实现（注册即可用，无验证环节）——上线前需产品决策；
-4. 多副本部署下限流已共享 Redis，但**会话/订单页的本地缓存**（user-store 的 localStorage）仍按设备隔离，跨设备不同步（设计如此，需知晓）。
+1. **C 端账户的体验项**：忘记密码 / 邮箱验证仍未实现（注册即可用，无验证环节，也无邮件服务）——**已按产品决策「暂缓，接受现状」**，上线后再补；
+2. **会话/订单页本地缓存**：`user-store` 的 localStorage 仍按设备隔离，跨设备不同步（设计如此，需知晓，非阻塞）；
+3. **生产配置落地**：按 `backend/.env.production.example` 基线切换生产配置并复跑自检（`DEV_LOGIN_FALLBACK=false` 下复验演示口令登录被拒、`API_DOCS_ENABLED=false`、独立 `JWT_SECRET`、CORS 收敛、DB 口令走密钥管理）——属上线当天动作，非代码缺陷；
+4. RAG 已跑通（§8.9），但 **Chroma 服务未进 compose**：多机/CI 部署需自行确保 8001 的 Chroma 可用，或后续把 Chroma 补进 `docker-compose.yml`。
+
+### 8.9 第三轮验证（2026-09-13：LLM 全链路 + RAG + Admin 浏览器实测）
+
+- **前提**：用户已在 `ai-service/.env` 填入模型凭据（阿里云百炼 Model Studio 工作空间，`DASHSCOPE_API_KEY=sk-ws-...`，工作空间 base `https://ws-0vj2yxa270d4mvm9.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`，模型 `qwen3.8-flash`）；
+- **修配置**：原 `MODEL_CHAT/MODEL_TOOL=qwen3.8-flash` 缺 LiteLLM 提供商前缀，litellm 报 `LLM Provider NOT provided`；已改为 `dashscope/qwen3.8-flash`（`.env` 属本地文件，未提交；`dashscope/` 前缀按 `.env.example` 约定）。经探测：`dashscope/qwen3.8-flash` 与 `openai/qwen3.8-flash`（显式 api_base）均可用；
+- **客服链路 PASS**（`POST /api/customer/chat`）：英文问候 → 英文回复；中文「查我的订单」→ 语言检测 zh(0.99) → 工具调用 `query_orders` → Java 后端按身份返回空（访客 0 条）→ LLM 依工具结果生成中文回复；（RAG 未启用时）中文「退货政策」→ `search_faq` 空转 → LLM **拒绝编造政策**并引导人工客服——启用后见下方 RAG 链路；
+- **Copilot 链路 PASS**（`POST /api/copilot/chat`，admin Bearer token 回查 `/api/currentUser` 通过）：「列出最近的订单」→ 工具调用 `query_orders(days=7)` → 返回 6 条真实订单 → LLM 生成 markdown 表格汇总（含订单号/金额/状态/支付方式），数据与库一致；
+- **Admin 后台浏览器实测 PASS**：`npm run start:no-mock`（8080，MOCK=none 直连后端）→ 登录页渲染 → `admin/ant.design`（`DEV_LOGIN_FALLBACK=true`）登录 → 重定向 `/dashboard`，仪表盘显示真实后端数据（累计 6 单、商品 52、库存预警 3、待处理工单 2；近 7 日销售/热销为「暂无数据」是因为种子订单日期在 2026-06，属正常）→ `/orders` 列出 6 笔订单（金额/状态/履约一致）→ `/products` 列出 52 件商品（编辑/删除/导出/CSV 导入/新建可用）→ `/copilot-history` 读取 ai-service 会话（含本文刚产生的会话，证明 Admin↔ai-service↔Postgres 全链路）；
+- **顺手修复**：`api/copilot_admin.py:147` `list_copilot_operations` 的 `auth_token_context.reset` 少了调用括号（token context 从未 reset），已改为与兄弟 handler 一致的 `reset(token_ctx)` + try/except，`py_compile` 通过；
+- **RAG 链路 PASS**（按用户决策「云端 embedding + 轻量 Chroma」）：
+  - `MODEL_EMBEDDING` 改为 `dashscope/text-embedding-v4`（探测返回 1024 维）；`.venv` 新增 `chromadb 1.5.9`（含 onnxruntime/numpy/grpc 等，**无 torch**）；
+  - 本机起 Chroma 服务：`.venv/Scripts/chroma.exe run --path ai-service/.chroma_data --host localhost --port 8001`（heartbeat 200；数据目录已加 `.gitignore`）;
+  - 入库：`python -m rag.ingest --customer-demo` → 10 条客服 FAQ（退货/物流/关税/支付/尺码/退款/保修，多语言）写入 `customer_kb`；
+  - 验证：「退货政策是什么？」→ `search_faq` 命中 4 条（中/英/日/韩返回政策）→ LLM 依检索结果用中文给出**准确**的 7 天无理由/30 天质量退货/不可退品类/退货流程（数字与入库文档一致，不再空转）；`.tmp_msg.json` 等临时文件已删；
+- **清理**：本轮测试写入的 2 条 Copilot 大会话已通过 `DELETE /copilot/sessions/{id}` 删除；临时脚本（`.tmp_msg.json`/`.tmp_copilot.py`/`llm_probe.py` 等）已删除。
 
 ## 7. 提交记录（本轮）
 
@@ -270,14 +285,16 @@ cd ai-service && uvicorn main:app --port 8000
 
 ### 发布就绪状态
 
-- **结论：后端与 C 端已具备上线条件（按 `backend/.env.production.example` 基线配置并复跑自检清单）；AI 服务与 Admin 后台仍有未验证面，整体上线前需完成下列第 1、2 项。**
-  - 两轮共修复 **P0×5、P1×9、P2×9**，并额外落地 C 端账户体系、订单/资料归属校验、Redis 限流、生产配置基线；
-  - 验证覆盖：后端 24 项单元测试全绿、113 项接口联调无新增失败、生产配置自检 6 项全过、Storefront 注册→下单→查单浏览器端到端、两处 XSS 修复的真实 DOM 正反对照、AI 服务工具层 token 透传端到端。
-- **上线前必须完成**：
-  1. **LLM 全链路复测**：StepFun key 当前返回 `no active step plan subscription`，Copilot/客服的真实对话未验证；RAG 还需安装 chromadb + BGE-m3（约 2.5GB，含 torch）。换用其它 provider 时同步复测 `MODEL_CHAT/MODEL_TOOL`；
-  2. **Admin 后台浏览器实测**：Admin 前端（含 openapi 生成的 services）未跑 UI，只做了接口级验证；
-  3. **产品决策**：C 端注册无邮箱验证/忘记密码（注册即可用）；确认是否接受；
-  4. 按基线执行生产配置并复跑自检：`DEV_LOGIN_FALLBACK=false`、`API_DOCS_ENABLED=false`、独立 `JWT_SECRET`、CORS 收敛、DB 口令走密钥管理。
+- **结论（2026-09-13 更新）：四端全部跑通实测——后端、C 端、AI 服务（对话 + 工具 + RAG）、Admin 后台均已验证；剩余阻塞只剩「C 端账户体验项（已决策暂缓）」与「生产配置落地」两项上线当天动作，代码层面无未修复的交付硬伤。
+
+- 两轮共修复 **P0×5、P1×9、P2×9**，并额外落地 C 端账户体系、订单/资料归属校验、Redis 限流、生产配置基线；
+- 第三轮（2026-09-13）补齐全部验证盲区：**LLM 全链路**（客服 + Copilot 真实对话与工具调用，`dashscope/qwen3.8-flash`）、**RAG 检索**（`dashscope/text-embedding-v4` + 轻量 Chroma，`search_faq` 命中真实 FAQ 并据此作答）、**Admin 后台浏览器实测**（登录→仪表盘→订单→商品→Copilot 历史），另修复 `copilot_admin` 一处 token context 未 reset 的小 bug——详见 §8.9；
+- 验证覆盖：后端 24 项单元测试全绿、113 项接口联调无新增失败、生产配置自检 6 项全过、Storefront 注册→下单→查单浏览器端到端、两处 XSS 修复的真实 DOM 正反对照、AI 服务工具层 token 透传端到端、客服/Copilot 真实 LLM 对话、RAG 政策问答、Admin 后台 UI 全链路。
+- **上线前必须完成（均为上线当天动作，非代码缺陷）**：
+  1. 按 `backend/.env.production.example` 基线执行生产配置并复跑自检：`DEV_LOGIN_FALLBACK=false`（并复验演示口令登录被拒）、`API_DOCS_ENABLED=false`、独立 `JWT_SECRET`、CORS 收敛、DB 口令走密钥管理；
+  2. 部署侧补齐 Chroma 服务（8001，未入 compose，多机/CI 需自行起或补进 compose）+ 按真实 FAQ/政策文档重新入库（当前 `customer_kb` 是 10 条演示文档）；
+  3. C 端账户体验项（邮箱验证/忘记密码）已按产品决策**暂缓**；如需上线再补邮件服务闭环；
+  4. 多副本部署确认（登录限流已共享 Redis；会话/订单本地缓存的跨设备不同步为已知设计）。
 - **遗留清理项**：
   - `D:\storefront-nested-git-backup-20260912`：平铺前的嵌套仓备份，确认根仓 storefront 文件完整后可删除；
   - `docs/ADMIN-TEST-REPORT.md` 仍是 2026-06-30 的旧报告，本轮联调结果只写在本文（未覆盖历史报告）；
