@@ -10,19 +10,19 @@
 
 - **Admin Copilot**（运营侧）：自然语言完成查商品、查订单、改价、改状态、NL2SQL 数据问答；写操作走"先解释 → 人工确认 → 执行"的安全流程。
 - **Storefront 智能客服**（消费者侧）：多语言接入（Unicode → 拉丁特征词 → LLM 兜底三级检测），强制 RAG 知识库检索，按 `user_id` 隔离订单与购物车。
-- **可插拔模型层**：通过 LiteLLM 统一接入 StepFun / DeepSeek / 智谱 / Ollama 等，`.env` 改一行即可切换。
+- **可插拔模型层**：通过 LiteLLM 统一接入阿里云百炼（DashScope）/ StepFun / DeepSeek / 智谱 / Ollama 等，`.env` 改一行即可切换；模型名需带 LiteLLM 提供商前缀（如 `dashscope/qwen3.8-flash`），裸模型名会报 "LLM Provider NOT provided"。
 
 ## 技术栈
 
 | 层          | 选型                                                      | 备注                                        |
 | ---------- | ------------------------------------------------------- | ----------------------------------------- |
 | 电商核心后端     | Java 23 + Spring Boot 4.0.6 + MyBatis 4.0.1 + Flyway 11 | 端口 `8081`                                 |
-| AI 服务      | Python 3.11 + FastAPI + LiteLLM                         | 端口 `8000`                                 |
-| Admin 后台   | Umi Max + Ant Design Pro v6                             | 端口 `8000/8080`                            |
+| AI 服务      | Python 3.11+ + FastAPI + LiteLLM                        | 端口 `8000`                                 |
+| Admin 后台   | Umi Max + Ant Design Pro v6                             | 端口 `8080`（dev）                          |
 | Storefront | Next.js 16 + Tailwind CSS                               | 端口 `3000`                                 |
 | 关系数据库      | PostgreSQL 16                                           | 端口 `5432`                                 |
 | 缓存 / 会话    | Redis 7                                                 | 端口 `6379`                                 |
-| 向量库        | Chroma（HTTP 客户端 + BGE-m3）                               | 端口 `8001`                                 |
+| 向量库        | Chroma（HTTP 服务，未入 compose）+ 云端 embedding（`dashscope/text-embedding-v4`） | 端口 `8001` |
 | 鉴权         | JWT (JJWT 0.12) + Spring Security                       | Bearer Token                              |
 | API 文档     | OpenAPI 自动生成 + PowerShell 联调脚本                          | 见 `docs/admin-test.ps1`                   |
 | Agent 编排   | 自研 async 循环（非 LangGraph）                                | `ai-service/agents/agent_orchestrator.py` |
@@ -38,7 +38,7 @@ ai_cbe/
 ├── docs/                   # 项目级文档（架构 / API 契约 / Agent 索引 / 测试报告）
 ├── database/               # 数据库初始化脚本（PostgreSQL）
 ├── nginx/                  # 反向代理配置
-├── docker-compose.yml      # 基础设施一键启动（postgres / redis / chroma）
+├── docker-compose.yml      # 基础设施一键启动（postgres / redis；Chroma 未编排）
 ├── .env.example            # 根环境变量模板
 ├── .gitignore
 └── README.md
@@ -107,19 +107,23 @@ java -jar target\backend-0.0.1-SNAPSHOT.jar
 
 ```bash
 cd ai-service
-cp .env.example .env       # 填模型 API Key（STEPFUN / DEEPSEEK / OPENAI ...）
-pip install -e .
-uvicorn main:app --reload --port 8000
+python -m venv .venv && .venv\Scripts\activate   # 建议 Python 3.11+
+cp .env.example .env       # 填模型 API Key，并配 MODEL_CHAT/MODEL_TOOL/MODEL_EMBEDDING
+pip install -e .           # 完整依赖（含 sentence-transformers，本地 BGE-m3 需要）
+uvicorn main:app --port 8000
 # → http://localhost:8000
 ```
+
+> **模型路由**：`MODEL_CHAT` / `MODEL_TOOL` / `MODEL_EMBEDDING` 均需带 LiteLLM 提供商前缀（如 `dashscope/qwen3.8-flash`、`dashscope/text-embedding-v4`）。
+> **云端 embedding（推荐，避免本地 2.5GB torch）**：`MODEL_EMBEDDING=dashscope/text-embedding-v4` 时无需 `sentence-transformers`，可只装轻量依赖：`pip install fastapi "uvicorn[standard]" litellm httpx python-dotenv redis "sqlalchemy[asyncio]" asyncpg chromadb`。
 
 ### 4. 启动 Admin 后台
 
 ```bash
 cd admin
 npm install
-npm run dev                # 默认端口 8000
-# → http://localhost:8000（代理 /api → http://localhost:8081）
+npm run dev                # 端口 8080（MOCK=none，直连后端）
+# → http://localhost:8080（代理 /api → backend 8081，AI 相关 → ai-service 8000）
 ```
 
 ### 5. 启动 Storefront
@@ -134,15 +138,23 @@ pnpm dev
 ### 6. RAG 入库（可选）
 
 ```bash
+# 1) 启动 Chroma 服务（compose 未编排，需自行启动）
 cd ai-service
-python -m rag.ingest --demo
+.venv\Scripts\chroma.exe run --path .chroma_data --host localhost --port 8001
+
+# 2) 入库客服 FAQ 演示文档（→ customer_kb 集合）
+.venv\Scripts\python.exe -m rag.ingest --customer-demo
 ```
+
+> 向量化默认走云端 `dashscope/text-embedding-v4`（用 `.env` 的 `DASHSCOPE_API_KEY`）；本地 BGE-m3 需另装 `sentence-transformers`（含 torch）。运营知识库用 `--demo`（→ `copilot_kb`）。
 
 ## 默认账户
 
 | 端     | 用户名     | 密码           |
 | ----- | ------- | ------------ |
 | Admin | `admin` | `ant.design` |
+
+> C 端（Storefront）**无预置账户**，消费者在页面上自助注册（`POST /api/storefront/auth/register`，口令 bcrypt 入库）；B 端账户走 `users` 表。
 
 > ⚠️ **仅本地开发可用**：该演示口令由 `backend/.env` 的 `DEV_LOGIN_FALLBACK=true` 开启，**默认关闭**。
 > 生产环境必须保持 `DEV_LOGIN_FALLBACK=false`，否则任何人都能用上表公开口令以 admin 身份登录后台。
@@ -187,7 +199,7 @@ cd admin && npm run e2e           # Playwright
 ## 关键约定
 
 1. **写操作必须** **`require_confirm=True`**（Copilot 默认拦截；客服 Agent 根本不被授予写操作）
-2. **Java 后端失败的兜底**：每个走 Java 的工具都要 `try/except`，通过 `tools/base.py: mock_or_error()` 统一处理；生产环境应设 `ENABLE_MOCK_FALLBACK=false` 直接报错
+2. **Java 后端失败处理**：每个走 Java 的工具都要 `try/except`，失败直接返回 `ToolResult(success=False, message=...)`，**不回退 mock 假数据**（`ENABLE_MOCK_FALLBACK` 已不再生效；`tools/base.py` 的 `mock_or_error()` 现为透传错误的兼容别名）
 3. **`admin/src/services/`** **禁止手改**，要改用 `npm run openapi` 重新生成
 4. **后端服务从各自目录启动**（`backend/`、`ai-service/`），不要在仓库根目录跑 `java -jar`
 5. **.env 不要 commit**，模板提交到 `.env.example`

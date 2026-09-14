@@ -1,6 +1,6 @@
 /**
  * 精简脚本 - 将完整版精简为简单版
- * 执行 npm run simple 运行此脚本
+ * 执行 npx ts-node scripts/simple.ts 运行此脚本
  *
  * 此操作不可逆，会删除以下内容：
  * - 页面目录：dashboard, form, list/basic-list, list/card-list, list/search, profile, result, exception, account, user/register, user/register-result
@@ -8,8 +8,8 @@
  * - 移除不再需要的依赖：@ant-design/plots, d3, topojson-client
  */
 
-const fs = require('node:fs');
-const path = require('node:path');
+import fs from 'node:fs';
+import path from 'node:path';
 
 // 需要删除的页面目录
 const pageDirsToDelete = [
@@ -26,7 +26,7 @@ const pageDirsToDelete = [
 ];
 
 // 需要删除的 mock 文件
-const mockFilesToDelete = [];
+const mockFilesToDelete: string[] = [];
 
 // 需要从 package.json 移除的依赖
 const depsToRemove = ['@ant-design/plots', 'd3', 'topojson-client'];
@@ -39,7 +39,7 @@ const devDepsToRemove = [
 ];
 
 // 递归删除目录
-function deleteDir(dirPath) {
+function deleteDir(dirPath: string) {
   if (fs.existsSync(dirPath)) {
     fs.rmSync(dirPath, { recursive: true, force: true });
     console.log(`✓ 已删除目录: ${dirPath}`);
@@ -49,7 +49,7 @@ function deleteDir(dirPath) {
 }
 
 // 删除文件
-function deleteFile(filePath) {
+function deleteFile(filePath: string) {
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
     console.log(`✓ 已删除文件: ${filePath}`);
@@ -146,7 +146,7 @@ function main() {
   // 删除自身
   console.log('\n>>> 清理精简脚本...');
   fs.unlinkSync(__filename);
-  console.log('✓ 已删除 scripts/simple.js');
+  console.log('✓ 已删除 scripts/simple.ts');
 
   // 尝试删除 scripts 目录（如果为空）
   const scriptsDir = path.dirname(__filename);

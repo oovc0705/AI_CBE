@@ -1,6 +1,7 @@
 // https://umijs.org/config/
 
 import { join } from 'node:path';
+import tailwindcss from '@tailwindcss/postcss';
 import { defineConfig } from '@umijs/max';
 import defaultSettings from './defaultSettings';
 import proxy from './proxy';
@@ -43,6 +44,9 @@ export default defineConfig({
    * @doc https://umijs.org/docs/api/config#hash
    */
   hash: true,
+
+  // 规避 Umi 4 已知的 esbuild helper 跨 chunk 冲突检查（官方建议开启）
+  esbuildMinifyIIFE: true,
 
   publicPath: PUBLIC_PATH,
 
@@ -180,6 +184,12 @@ export default defineConfig({
     // 解决首次加载时白屏的问题
     { src: '/scripts/loading.js', async: true },
   ],
+
+  /**
+   * @name PostCSS 插件
+   * @description Tailwind CSS v4（原 postcss.config.js 迁移而来）
+   */
+  extraPostCSSPlugins: [tailwindcss],
 
   //================ pro 插件配置 =================
   plugins: ['@umijs/request-record'],

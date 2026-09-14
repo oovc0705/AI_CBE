@@ -1,6 +1,6 @@
 /**
  * i18n 移除脚本 - 将国际化的文本替换为中文，移除 i18n 相关代码
- * 执行 npm run i18n-remove 运行此脚本
+ * 执行 npx ts-node scripts/i18n-remove.ts 运行此脚本
  *
  * 此操作不可逆，会执行以下变更：
  * - 读取 src/locales/zh-CN 的翻译映射
@@ -12,8 +12,10 @@
  * - 删除 src/locales/ 目录
  */
 
-const fs = require('node:fs');
-const path = require('node:path');
+import fs from 'node:fs';
+import path from 'node:path';
+
+type LocaleMap = Record<string, string>;
 
 const I18N_SYMBOLS = [
   'useIntl',
@@ -33,8 +35,8 @@ const QSTR = `'((?:[^'\\\\]|\\\\.)*)'|"((?:[^"\\\\]|\\\\.)*)"`;
 
 // ─── 工具函数 ───────────────────────────────────────────
 
-function readDirRecursive(dir) {
-  const results = [];
+function readDirRecursive(dir: string): string[] {
+  const results: string[] = [];
   if (!fs.existsSync(dir)) return results;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
@@ -47,7 +49,7 @@ function readDirRecursive(dir) {
   return results;
 }
 
-function toStrLiteral(text) {
+function toStrLiteral(text: string): string {
   return `'${text
     .replace(/\\/g, '\\\\')
     .replace(/'/g, "\\'")
@@ -57,17 +59,17 @@ function toStrLiteral(text) {
     .replace(/\u2029/g, '\\u2029')}'`;
 }
 
-function resolveText(id, defaultMsg, localeMap) {
+function resolveText(id: string, defaultMsg: string, localeMap: LocaleMap) {
   return localeMap[id] || defaultMsg || id;
 }
 
 /**
  * 找到括号匹配的闭合位置
- * @param {string} str - 源字符串
- * @param {number} openIdx - 开括号 ( 的位置
- * @returns {number} 闭括号 ) 的位置，-1 表示未找到
+ * @param str - 源字符串
+ * @param openIdx - 开括号 ( 的位置
+ * @returns 闭括号 ) 的位置，-1 表示未找到
  */
-function findClosingParen(str, openIdx) {
+function findClosingParen(str: string, openIdx: number): number {
   let depth = 0;
   let i = openIdx;
   while (i < str.length) {
@@ -100,12 +102,12 @@ function findClosingParen(str, openIdx) {
 
 // ─── Step 1: 构建 zh-CN 翻译映射 ────────────────────────
 
-function buildLocaleMap() {
+function buildLocaleMap(): LocaleMap {
   const localeDir = path.join('src', 'locales');
   const zhCNDir = path.join(localeDir, 'zh-CN');
   const files = readDirRecursive(zhCNDir).filter((f) => f.endsWith('.ts'));
   const mainFile = path.join(localeDir, 'zh-CN.ts');
-  const localeMap = {};
+  const localeMap: LocaleMap = {};
 
   for (const file of files) {
     const content = fs.readFileSync(file, 'utf-8');
@@ -119,7 +121,7 @@ function buildLocaleMap() {
   return localeMap;
 }
 
-function extractLocaleKeys(content, localeMap) {
+function extractLocaleKeys(content: string, localeMap: LocaleMap) {
   // Match key: 'value' or key: "value", supporting escaped quotes inside values
   const regex =
     /['"]([a-zA-Z0-9_.-]+)['"]\s*:\s*'((?:[^'\\]|\\.)*)'|['"]([a-zA-Z0-9_.-]+)['"]\s*:\s*"((?:[^"\\]|\\.)*)"/g;
@@ -134,8 +136,8 @@ function extractLocaleKeys(content, localeMap) {
 
 // ─── Step 2: 获取 menu 映射 ─────────────────────────────
 
-function buildMenuMap(localeMap) {
-  const menuMap = {};
+function buildMenuMap(localeMap: LocaleMap): LocaleMap {
+  const menuMap: LocaleMap = {};
   for (const [key, value] of Object.entries(localeMap)) {
     if (key.startsWith('menu.')) {
       menuMap[key.slice(5)] = value;
@@ -146,7 +148,7 @@ function buildMenuMap(localeMap) {
 
 // ─── Step 3: 替换路由文件中的 name ──────────────────────
 
-function replaceRoutes(menuMap) {
+function replaceRoutes(menuMap: LocaleMap) {
   const configDir = path.join('config');
   if (!fs.existsSync(configDir)) {
     console.log('- config/ 目录不存在，跳过');
@@ -162,14 +164,17 @@ function replaceRoutes(menuMap) {
     let content = fs.readFileSync(routesPath, 'utf-8');
     let modified = false;
 
-    content = content.replace(/name:\s*['"]([^'"]+)['"]/g, (match, name) => {
-      const zhValue = menuMap[name];
-      if (zhValue) {
-        modified = true;
-        return `name: ${toStrLiteral(zhValue)}`;
-      }
-      return match;
-    });
+    content = content.replace(
+      /name:\s*['"]([^'"]+)['"]/g,
+      (match: string, name: string) => {
+        const zhValue = menuMap[name];
+        if (zhValue) {
+          modified = true;
+          return `name: ${toStrLiteral(zhValue)}`;
+        }
+        return match;
+      },
+    );
 
     if (modified) {
       fs.writeFileSync(routesPath, content);
@@ -216,7 +221,7 @@ function removeLocaleConfig() {
 
 // ─── Step 5: 替换源文件中的 i18n 调用 ──────────────────
 
-function processSourceFiles(localeMap) {
+function processSourceFiles(localeMap: LocaleMap) {
   const srcDir = path.join('src');
   const files = readDirRecursive(srcDir).filter((f) => {
     const ext = path.extname(f);
@@ -235,7 +240,7 @@ function processSourceFiles(localeMap) {
   }
 }
 
-function processFile(filePath, localeMap) {
+function processFile(filePath: string, localeMap: LocaleMap) {
   let content = fs.readFileSync(filePath, 'utf-8');
   const original = content;
 
@@ -278,7 +283,7 @@ function processFile(filePath, localeMap) {
   // ── 5. 处理 getLocale() 调用
   content = content.replace(
     /const\s+(\w+)\s*=\s*getLocale\(\)\s*;?/g,
-    (_match, varName) => {
+    (_match: string, varName: string) => {
       return `const ${varName} = 'zh-CN';`;
     },
   );
@@ -290,7 +295,7 @@ function processFile(filePath, localeMap) {
   );
   content = content.replace(
     /const\s+(\w+)\s*=\s*getAllLocales\(\)\s*;?/g,
-    (_match, varName) => {
+    (_match: string, varName: string) => {
       return `const ${varName} = ['zh-CN'];`;
     },
   );
@@ -315,12 +320,12 @@ function processFile(filePath, localeMap) {
   // 只移除文件中不再使用的 i18n 相关符号
   content = content.replace(
     /import\s*\{([^}]*)\}\s*from\s*['"]@umijs\/max['"];?\n?/g,
-    (match, imports) => {
+    (match: string, imports: string) => {
       const codeWithoutImport = content.replace(match, '');
       const items = imports
         .split(',')
-        .map((s) => s.trim())
-        .filter((s) => {
+        .map((s: string) => s.trim())
+        .filter((s: string) => {
           if (!s || !I18N_SYMBOLS.includes(s)) return true;
           const regex = new RegExp(`\\b${s}\\b`);
           return regex.test(codeWithoutImport);
@@ -335,26 +340,29 @@ function processFile(filePath, localeMap) {
   );
 
   // ── 9. 简化 JSX 文本子节点中的 {'中文'} → 中文
-  content = content.replace(/\{'([^']*)'\}/g, (match, text, offset, str) => {
-    const before = str.slice(Math.max(0, offset - 30), offset);
-    const charBeforeBrace = before.trimEnd().slice(-1);
-    // 不简化: JSX 属性(=)、模板字符串($)、函数参数/数组/表达式((,[,,)
-    if (
-      charBeforeBrace === '=' ||
-      charBeforeBrace === '$' ||
-      charBeforeBrace === '(' ||
-      charBeforeBrace === ',' ||
-      charBeforeBrace === '['
-    ) {
-      return match;
-    }
-    return text;
-  });
+  content = content.replace(
+    /\{'([^']*)'\}/g,
+    (match: string, text: string, offset: number, str: string) => {
+      const before = str.slice(Math.max(0, offset - 30), offset);
+      const charBeforeBrace = before.trimEnd().slice(-1);
+      // 不简化: JSX 属性(=)、模板字符串($)、函数参数/数组/表达式((,[,,)
+      if (
+        charBeforeBrace === '=' ||
+        charBeforeBrace === '$' ||
+        charBeforeBrace === '(' ||
+        charBeforeBrace === ',' ||
+        charBeforeBrace === '['
+      ) {
+        return match;
+      }
+      return text;
+    },
+  );
 
   // ── 10. 简化 JSX 文本子节点中 FormattedMessage 产生的 '中文' → 中文
   content = content.replace(
     />(\s*)'([^'<]*?)'(\s*)<\//g,
-    (_match, ws1, text, ws2) => {
+    (_match: string, ws1: string, text: string, ws2: string) => {
       return `>${ws1}${text}${ws2}</`;
     },
   );
@@ -375,7 +383,10 @@ function processFile(filePath, localeMap) {
  * 替换 intl.formatMessage(...) 和 useIntl().formatMessage(...)
  * 使用括号匹配来精确找到完整的函数调用
  */
-function replaceFormatMessageCalls(content, localeMap) {
+function replaceFormatMessageCalls(
+  content: string,
+  localeMap: LocaleMap,
+): string {
   const patterns = FORMAT_MESSAGE_PATTERNS;
 
   for (const pattern of patterns) {
@@ -430,7 +441,10 @@ function replaceFormatMessageCalls(content, localeMap) {
  * 替换 <FormattedMessage id="xxx" defaultMessage="yyy" />
  * 只替换 id 为字符串字面量的组件
  */
-function replaceFormattedMessageComponents(content, localeMap) {
+function replaceFormattedMessageComponents(
+  content: string,
+  localeMap: LocaleMap,
+): string {
   let searchFrom = 0;
   const pattern = '<FormattedMessage';
 
@@ -467,7 +481,7 @@ function replaceFormattedMessageComponents(content, localeMap) {
 /**
  * 移除 setLocale() 调用，使用括号匹配处理嵌套括号
  */
-function removeSetLocaleCalls(content) {
+function removeSetLocaleCalls(content: string): string {
   const pattern = 'setLocale(';
   let searchFrom = 0;
   while (true) {

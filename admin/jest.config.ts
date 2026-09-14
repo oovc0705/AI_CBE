@@ -16,15 +16,15 @@ export default async (): Promise<any> => {
     ...config,
     testPathIgnorePatterns: ['/node_modules/', '/.worktrees/'],
     moduleNameMapper: {
-      '\\.md$': '<rootDir>/tests/__mocks__/raw.js',
+      '\\.md$': '<rootDir>/tests/__mocks__/raw.ts',
       ...(config.moduleNameMapper || {}),
-      '^mermaid$': '<rootDir>/tests/__mocks__/mermaid.js',
+      '^mermaid$': '<rootDir>/tests/__mocks__/mermaid.ts',
     },
     testEnvironmentOptions: {
       ...(config?.testEnvironmentOptions || {}),
       url: 'http://localhost:8000',
     },
-    setupFiles: [...(config.setupFiles || []), './tests/setupTests.jsx'],
+    setupFiles: [...(config.setupFiles || []), './tests/setupTests.ts'],
     globals: {
       ...config.globals,
       localStorage: null,
