@@ -361,8 +361,8 @@ HTTP → api/*.py (SSE) → agents/*_agent.py → AgentOrchestrator.run()
                                             ├─ model_router.chat()   # LiteLLM
                                             ├─ 解析 tool_calls
                                             │   ├─ 读操作 → tools/*.execute() → Java API（失败按配置回退 mock）
-                                            │   └─ 写操作 → final 中请求用户确认 → 挂起到 Redis pending
-                                            └─ 用户回复「确认」→ 写执行 → 让 LLM 总结
+                                            │   └─ 写操作 → confirm 事件 → 挂起到 Redis pending
+                                            └─ 结构化确认（按钮/接口 + token）→ 写执行 → 让 LLM 总结
 ```
 
 ### 5.2 关键设计原则
@@ -406,12 +406,13 @@ HTTP → api/*.py (SSE) → agents/*_agent.py → AgentOrchestrator.run()
 
 - **类**：`AgentOrchestrator`，被 `CopilotAgent` 与 `CustomerAgent` 继承
 - **方法**：
-  - `run(session_id, user_input, enable_tools, caller_user_id, pre_hook)` → 异步生成器
-  - `resume_after_confirm(session_id, confirmed)` → 兼容旧流程/命令行直接确认
+  - `run(session_id, user_input, enable_tools, caller_user_id, operator_info, pre_hook)` → 异步生成器
+  - `resume_after_confirm(session_id, confirmed, operator_info, confirm_token)` → 结构化确认入口
 - **常量**：`MAX_ITERATIONS = 6`（单轮最多 6 步工具循环）
 - **事件类型**（SSE 推给前端）：
   - `session` / `tool_call` / `confirm` / `tool_result` / `final` / `error`
-- **挂起存储**：Redis `ai:session:{id}:pending`（**服务重启仍可恢复**）；用户回复「确认/取消」后继续
+- **挂起存储**：Redis `ai:session:{id}:pending`（**服务重启仍可恢复**）；`confirm` 事件下发 `confirm_token`，前端按钮/接口提交令牌后才执行
+- **执行期白名单**：工具调用执行前再次校验 `ALLOWED_TOOLS`，防止模型被诱导调用未暴露的工具
 - **权限注入**：`caller_user_id` 存在时自动给 `query_orders` 注入 `user_id`；`query_cart` 强制覆盖 `session_id`
 
 ### 6.2 `agents/copilot_agent.py`
@@ -475,7 +476,7 @@ LiteLLM provider 前缀示例：`openai/...`(StepFun)、`deepseek/...`、`zhipu/
 |------|------|------|------|
 | GET  | `/health` | — | 健康检查 |
 | POST | `/api/copilot/chat` | `{message, session_id?, enable_tools?}` | Admin Copilot 流式对话 |
-| POST | `/api/copilot/confirm` | `{session_id, confirmed}` | 写操作确认/拒绝（旧流程兼容） |
+| POST | `/api/copilot/confirm` | `{session_id, confirmed, confirm_token}` | 写操作结构化确认/拒绝 |
 | GET  | `/api/copilot/sessions` | `limit?, offset?` | 当前用户会话历史 |
 | GET  | `/api/copilot/sessions/{id}/messages` | — | 指定会话的消息记录 |
 | GET  | `/api/copilot/operations` | `limit?, offset?` | 当前用户写操作历史 |

@@ -9,7 +9,7 @@
 
 SSE 事件格式（每行 `data: <json>\n\n`）：
   {"type":"tool_call","name":"...","args":{...},"require_confirm":true}
-  {"type":"confirm","tool_name":"...","args":{...},"message":"..."}
+  {"type":"confirm","tool_name":"...","args":{...},"message":"...","confirm_token":"..."}
   {"type":"tool_result","name":"...","result":"...","success":true}
   {"type":"final","content":"..."}
 """
@@ -47,6 +47,7 @@ class ChatRequest(BaseModel):
 class ConfirmRequest(BaseModel):
     session_id: str
     confirmed: bool = Field(..., description="true 执行，false 取消")
+    confirm_token: str = Field(..., description="confirm 事件中下发的确认令牌")
 
 
 def _sse(event: dict) -> str:
@@ -167,7 +168,10 @@ async def confirm(
     req: ConfirmRequest,
     current_user: Dict[str, Any] = Depends(verify_admin_token),
 ):
-    """对挂起的写操作给出确认结果，继续执行。"""
+    """对挂起的写操作给出确认结果，继续执行。
+
+    confirm_token 必须来自同一会话最近一次 confirm 事件，防止确认到已被替换的操作。
+    """
     # viewer / user 角色只读，不能确认任何写操作
     if current_user.get("access") in ("viewer", "user"):
         raise HTTPException(status_code=403, detail="当前账号为只读角色，无权执行写操作")
@@ -181,7 +185,10 @@ async def confirm(
         final_content = ""
         try:
             async for event in copilot_agent.resume_after_confirm(
-                req.session_id, req.confirmed, operator_info=current_user
+                req.session_id,
+                req.confirmed,
+                operator_info=current_user,
+                confirm_token=req.confirm_token,
             ):
                 yield _sse(event)
                 if event.get("type") == "tool_result":

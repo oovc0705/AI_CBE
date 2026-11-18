@@ -35,20 +35,30 @@ def _print_event(event: dict) -> None:
         print(f"\n❌ 错误: {event['message']}")
 
 
-async def chat_turn(session_id: str, user_input: str) -> bool:
-    """一轮对话。返回是否有挂起的写操作需确认。"""
-    pending = False
-    async for event in copilot_agent.run(session_id, user_input):
+_OPERATOR = {"userId": "local_cli", "name": "CLI", "access": "admin"}
+
+
+async def chat_turn(session_id: str, user_input: str) -> dict | None:
+    """一轮对话。返回挂起的写操作确认事件（如有）。"""
+    pending = None
+    async for event in copilot_agent.run(
+        session_id, user_input, operator_info=_OPERATOR
+    ):
         _print_event(event)
         if event.get("type") == "confirm":
-            pending = True
+            pending = event
     return pending
 
 
-async def confirm_turn(session_id: str) -> None:
+async def confirm_turn(session_id: str, pending: dict) -> None:
     ans = input("\n是否确认执行？(y/N): ").strip().lower()
     confirmed = ans in {"y", "yes", "是"}
-    async for event in copilot_agent.resume_after_confirm(session_id, confirmed):
+    async for event in copilot_agent.resume_after_confirm(
+        session_id,
+        confirmed,
+        operator_info=_OPERATOR,
+        confirm_token=pending.get("confirm_token"),
+    ):
         _print_event(event)
 
 
@@ -81,7 +91,7 @@ async def main() -> None:
 
         pending = await chat_turn(session_id, user_input)
         if pending:
-            await confirm_turn(session_id)
+            await confirm_turn(session_id, pending)
 
 
 if __name__ == "__main__":

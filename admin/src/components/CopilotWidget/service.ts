@@ -79,6 +79,29 @@ export async function* chatCopilot(
   yield* readSSE(resp);
 }
 
+export async function* confirmCopilot(
+  sessionId: string,
+  confirmed: boolean,
+  confirmToken: string,
+): AsyncGenerator<Record<string, any>> {
+  const resp = await fetch(`${BASE_URL}/api/copilot/confirm`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      session_id: sessionId,
+      confirmed,
+      confirm_token: confirmToken,
+    }),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '未知错误');
+    throw new Error(`Copilot 确认请求失败：${text}`);
+  }
+
+  yield* readSSE(resp);
+}
+
 export async function listCopilotSessions(): Promise<{
   success: boolean;
   data: { id: string; title: string; created_at: string; updated_at: string }[];

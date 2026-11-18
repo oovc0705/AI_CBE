@@ -20,6 +20,7 @@ import {
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   chatCopilot,
+  confirmCopilot,
   getCopilotSessionMessages,
   listCopilotOperations,
   listCopilotSessions,
@@ -49,6 +50,14 @@ interface OperationItem {
   result: any;
   success: string;
   created_at: string;
+}
+
+interface PendingConfirm {
+  sessionId: string;
+  toolName: string;
+  args: Record<string, any>;
+  message?: string;
+  confirmToken: string;
 }
 
 const WELCOME_MESSAGE: Message = {
@@ -171,6 +180,27 @@ const useStyles = createStyles(({ token, css }) => ({
     border: 1px solid ${token.colorWarningBorder};
     font-size: 12px;
   `,
+  confirmCard: css`
+    margin: 0 16px 8px;
+    padding: 10px 12px;
+    border: 1px solid ${token.colorWarningBorder};
+    background: ${token.colorWarningBg};
+    border-radius: ${token.borderRadiusLG}px;
+  `,
+  confirmArgs: css`
+    margin: 6px 0;
+    max-height: 140px;
+    overflow: auto;
+    font-size: 12px;
+    background: ${token.colorBgContainer};
+    padding: 6px 8px;
+    border-radius: 4px;
+  `,
+  confirmActions: css`
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  `,
   inputArea: css`
     padding: 12px 16px;
     border-top: 1px solid ${token.colorBorderSecondary};
@@ -221,6 +251,7 @@ const CopilotWidget: React.FC = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string>();
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   // 历史与会话相关
@@ -263,6 +294,7 @@ const CopilotWidget: React.FC = () => {
 
   const startNewChat = useCallback(() => {
     setSessionId(undefined);
+    setPendingConfirm(null);
     setMessages([WELCOME_MESSAGE]);
   }, []);
 
@@ -292,6 +324,7 @@ const CopilotWidget: React.FC = () => {
         }));
         setMessages(loaded.length ? loaded : [WELCOME_MESSAGE]);
         setSessionId(id);
+        setPendingConfirm(null);
       }
     } catch (err: any) {
       setMessages([{ id: 'error', role: 'system', content: `加载历史消息失败：${err.message}` }]);
@@ -340,6 +373,15 @@ const CopilotWidget: React.FC = () => {
           case 'session':
             setSessionId(event.session_id);
             break;
+          case 'confirm':
+            setPendingConfirm({
+              sessionId: event.session_id,
+              toolName: event.tool_name,
+              args: event.args || {},
+              message: event.message,
+              confirmToken: event.confirm_token,
+            });
+            break;
           case 'final':
             appendOrReplaceFinal(event.content);
             break;
@@ -360,6 +402,46 @@ const CopilotWidget: React.FC = () => {
       setLoading(false);
     }
   }, [input, loading, sessionId, appendMessage, appendOrReplaceFinal, historyOpen, loadSessions]);
+
+  const handlePendingDecision = useCallback(
+    async (confirmed: boolean) => {
+      if (!pendingConfirm || loading) return;
+      setLoading(true);
+      try {
+        for await (const event of confirmCopilot(
+          pendingConfirm.sessionId,
+          confirmed,
+          pendingConfirm.confirmToken,
+        )) {
+          switch (event.type) {
+            case 'final':
+              appendOrReplaceFinal(event.content);
+              break;
+            case 'error':
+              appendOrReplaceFinal(`❌ ${event.message}`);
+              break;
+            default:
+              break;
+          }
+        }
+        if (operationsOpen) {
+          loadOperations();
+        }
+      } catch (err: any) {
+        appendOrReplaceFinal(`❌ ${err.message}`);
+      } finally {
+        setPendingConfirm(null);
+        setLoading(false);
+      }
+    },
+    [
+      pendingConfirm,
+      loading,
+      appendOrReplaceFinal,
+      operationsOpen,
+      loadOperations,
+    ],
+  );
 
   const renderMessage = (msg: Message, isLastAssistantStreaming = false) => {
     if (msg.role === 'user') {
@@ -456,6 +538,32 @@ const CopilotWidget: React.FC = () => {
           {loading && (
             <div className={styles.thinking}>
               <Spin size="small" /> 正在思考…
+            </div>
+          )}
+          {pendingConfirm && (
+            <div className={styles.confirmCard}>
+              <Text strong>待确认写操作：{pendingConfirm.toolName}</Text>
+              <pre className={styles.confirmArgs}>
+                {JSON.stringify(pendingConfirm.args, null, 2)}
+              </pre>
+              <div className={styles.confirmActions}>
+                <Button
+                  type="primary"
+                  danger
+                  size="small"
+                  loading={loading}
+                  onClick={() => handlePendingDecision(true)}
+                >
+                  确认执行
+                </Button>
+                <Button
+                  size="small"
+                  disabled={loading}
+                  onClick={() => handlePendingDecision(false)}
+                >
+                  取消
+                </Button>
+              </div>
             </div>
           )}
           <div className={styles.inputArea}>

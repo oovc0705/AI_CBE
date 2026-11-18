@@ -1,13 +1,14 @@
 """Agent 编排器：驱动「思考 → 工具调用 → 人工确认 → 执行 → 总结」循环。
 
 不依赖 LangGraph 的复杂状态图（降低本地调试门槛），用纯 async 循环实现。
-循环上限保护，避免无限调用。写操作会先在输出中请求用户确认，用户回复
-「确认/取消」后继续执行；挂起状态持久化到 Redis，服务重启仍可恢复。
+循环上限保护，避免无限调用。写操作会挂起并持久化到 Redis，只有通过结构化
+确认接口（POST /api/copilot/confirm 或前端按钮）才会执行；确认记录绑定发起
+用户与角色，避免跨用户确认或只读角色越权。
 
 事件流（前端可订阅）：
 - "thought"    模型思考/普通回复
 - "tool_call"  即将调用工具（含名称、参数、是否需确认）
-- "confirm"    等待人工确认（写操作）—— 仅用于兼容旧前端/API
+- "confirm"    等待人工确认（写操作），携带 confirm_token
 - "tool_result"工具执行结果
 - "final"      最终回复
 """
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional
 
 from core.audit_logger import log_write_operation
@@ -26,20 +28,12 @@ logger = logging.getLogger(__name__)
 
 MAX_ITERATIONS = 6  # 单轮对话最多工具调用次数
 
-# 用户确认意图关键词
-_CONFIRM_WORDS = {"确认", "确定", "是的", "是", "ok", "yes", "y", "执行", "继续"}
-_CANCEL_WORDS = {"取消", "不", "否", "no", "n", "拒绝", "算了"}
 
-
-def _parse_confirm_intent(text: str) -> str:
-    """解析用户回复是确认、取消还是无关。"""
-    t = (text or "").strip().lower()
-    # 先检查取消，避免「不确认」「不要执行」被误判为确认
-    if any(w in t for w in _CANCEL_WORDS):
-        return "cancel"
-    if any(w in t for w in _CONFIRM_WORDS):
-        return "confirm"
-    return "unknown"
+def _operator_user_id(operator_info: Optional[Dict[str, Any]]) -> Optional[str]:
+    """从鉴权信息中取当前操作人 ID。"""
+    if not operator_info:
+        return None
+    return operator_info.get("userId") or operator_info.get("id")
 
 
 class AgentOrchestrator:
@@ -54,7 +48,7 @@ class AgentOrchestrator:
     ) -> None:
         self.system_prompt = system_prompt
         self.tools = tools
-        self.allowed = set(allowed_tool_names) if allowed_tool_names else None
+        self.allowed = set(allowed_tool_names) if allowed_tool_names is not None else None
         self.model = model
 
     # ------------------------------------------------------------------
@@ -63,7 +57,7 @@ class AgentOrchestrator:
         all_schemas = {}
         # 重建 schema 列表，按 allowed 过滤
         for name in self.tools.names():
-            if self.allowed and name not in self.allowed:
+            if self.allowed is not None and name not in self.allowed:
                 continue
             all_schemas[name] = self.tools.get(name)
         return [t.to_openai_schema() for t in all_schemas.values() if t]
@@ -82,7 +76,35 @@ class AgentOrchestrator:
         confirmed: bool,
         operator_info: Optional[Dict[str, Any]] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
-        """执行 Redis 中挂起的写操作并生成总结。"""
+        """执行 Redis 中挂起的写操作并生成总结。
+
+        执行前复核：操作归属用户、调用方角色、工具白名单。
+        """
+        owner = pending.get("user_id")
+        current = _operator_user_id(operator_info)
+        if not owner or not current or owner != current:
+            yield {
+                "type": "final",
+                "content": "该待确认操作不属于当前账号，无法执行。",
+            }
+            return
+
+        role = operator_info.get("access") if operator_info else None
+        if role in ("viewer", "user"):
+            yield {
+                "type": "final",
+                "content": f"当前账号为 {role} 只读角色，无法执行写操作。",
+            }
+            return
+
+        if self.allowed is not None and pending.get("tool_name") not in self.allowed:
+            await session_manager.set_pending(session_id, None)
+            yield {
+                "type": "final",
+                "content": f"工具 `{pending.get('tool_name')}` 未获当前 Agent 授权，操作已取消。",
+            }
+            return
+
         if not confirmed:
             await session_manager.set_pending(session_id, None)
             yield {"type": "final", "content": f"已取消操作 `{pending['tool_name']}`。"}
@@ -139,29 +161,41 @@ class AgentOrchestrator:
         """主循环：流式产出事件 dict。
 
         yield 的事件类型见模块 docstring。
-        遇到写操作会在 final 事件中请求用户确认；用户回复「确认/取消」后，
-        下次调用 run() 会继续执行。
+        遇到写操作会产出 confirm 事件并挂起；只有通过结构化确认接口才能继续。
         """
-        # 0) 优先处理 Redis 中挂起的写操作
+        # 0) 存在挂起的写操作时，只允许通过结构化确认接口继续，不再从自然语言推断
         pending = await session_manager.get_pending(session_id)
         if pending:
-            intent = _parse_confirm_intent(user_input)
-            if intent == "confirm":
-                async for event in self._execute_pending(
-                    session_id, pending, True, operator_info
-                ):
-                    yield event
-                return
-            if intent == "cancel":
+            owner = pending.get("user_id")
+            current = _operator_user_id(operator_info)
+            if not owner:
+                # 旧版本遗留的 pending 没有归属信息，直接作废，避免被任意账号确认
                 await session_manager.set_pending(session_id, None)
-                yield {"type": "final", "content": f"已取消操作 `{pending['tool_name']}`。"}
+                yield {
+                    "type": "final",
+                    "content": "检测到旧版待确认操作（缺少归属信息），已作废，请重新发起。",
+                }
                 return
-            # 无关回复：再次提示确认
+            if not current or owner != current:
+                yield {
+                    "type": "final",
+                    "content": "当前会话有待确认的写操作，但不属于当前账号，无法处理。",
+                }
+                return
+
+            yield {
+                "type": "confirm",
+                "session_id": session_id,
+                "tool_name": pending["tool_name"],
+                "args": pending["args"],
+                "message": pending.get("message", ""),
+                "confirm_token": pending.get("confirm_token", ""),
+            }
             yield {
                 "type": "final",
                 "content": (
                     f"仍等待确认操作 `{pending['tool_name']}`。\n"
-                    f"请回复「确认」执行，或回复「取消」放弃。"
+                    f"请点击「确认执行」或「取消」按钮完成操作。"
                 ),
             }
             return
@@ -234,6 +268,27 @@ class AgentOrchestrator:
                 except json.JSONDecodeError:
                     args = {}
 
+                # 执行期强制白名单：模型即使被诱导产出未暴露的工具名，也不允许执行
+                if self.allowed is not None and fn.name not in self.allowed:
+                    logger.warning(
+                        "Blocked unauthorized tool call: agent=%s tool=%s",
+                        type(self).__name__, fn.name,
+                    )
+                    denied = f"[ERROR] 工具 `{fn.name}` 未获当前 Agent 授权"
+                    yield {
+                        "type": "tool_result",
+                        "name": fn.name,
+                        "result": denied,
+                        "success": False,
+                    }
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "name": fn.name,
+                        "content": denied,
+                    })
+                    continue
+
                 entry = self.tools.get(fn.name)
                 need_confirm = bool(entry and entry.require_confirm)
 
@@ -265,29 +320,47 @@ class AgentOrchestrator:
                         }
                         return
 
-                    # 写操作：持久化挂起到 Redis，并在输出中请求确认
+                    # 写操作：必须能确定操作人，否则拒绝挂起
+                    operator_id = _operator_user_id(operator_info)
+                    if not operator_id:
+                        yield {
+                            "type": "final",
+                            "content": "无法确定操作人身份，已拒绝执行写操作。",
+                        }
+                        return
+
+                    # 写操作：持久化挂起到 Redis，并等待前端按钮结构化确认
                     pending = {
                         "tool_name": fn.name,
                         "args": args,
                         "message": f"即将执行写操作 `{fn.name}`，参数：{args}",
                         "tool_call_id": tc.id,
                         "messages": [m.copy() for m in messages],
+                        "user_id": operator_id,
+                        "role": role,
+                        "confirm_token": uuid.uuid4().hex,
                     }
                     await session_manager.set_pending(session_id, pending)
 
                     confirm_msg = (
                         f"我将执行写操作 `{fn.name}`，参数如下：\n"
                         f"```json\n{json.dumps(args, ensure_ascii=False, indent=2)}\n```\n"
-                        f"请回复「确认」执行，或回复「取消」放弃。"
+                        f"请在下方点击「确认执行」或「取消」。"
                     )
-                    yield {"type": "confirm", "tool_name": fn.name,
-                           "args": args, "message": pending["message"]}
+                    yield {
+                        "type": "confirm",
+                        "session_id": session_id,
+                        "tool_name": fn.name,
+                        "args": args,
+                        "message": pending["message"],
+                        "confirm_token": pending["confirm_token"],
+                    }
                     yield {"type": "final", "content": confirm_msg}
                     await session_manager.append_message(
                         session_id, {"role": "assistant", "content": confirm_msg}
                     )
                     all_confirmed = False
-                    break  # 暂停循环，等用户回复
+                    break  # 暂停循环，等待结构化确认
                 else:
                     # 读操作：直接执行
                     result = await self.tools.execute(fn.name, args)
@@ -301,7 +374,7 @@ class AgentOrchestrator:
                     })
 
             if not all_confirmed:
-                # 有写操作挂起，上下文已保存在 pending.messages 中，等用户回复
+                # 有写操作挂起，上下文已保存在 pending.messages 中，等结构化确认
                 return
 
             # 5) 继续循环：让模型基于工具结果继续
@@ -315,10 +388,11 @@ class AgentOrchestrator:
         session_id: str,
         confirmed: bool,
         operator_info: Optional[Dict[str, Any]] = None,
+        confirm_token: Optional[str] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
-        """兼容旧流程：前端/命令行直接对写操作给出确认/拒绝后，恢复执行。
+        """结构化确认入口：前端/命令行提交明确的确认或取消。
 
-        新流程推荐通过正常 chat 回复「确认/取消」继续。
+        confirm_token 必须是 confirm 事件中下发的令牌，防止确认到已被替换的操作。
         """
         # 安全兜底：viewer / user 不能恢复执行写操作
         role = operator_info.get("access") if operator_info else None
@@ -329,6 +403,14 @@ class AgentOrchestrator:
         pending = await session_manager.get_pending(session_id)
         if pending is None:
             yield {"type": "final", "content": "没有挂起的操作。"}
+            return
+
+        expected = pending.get("confirm_token")
+        if not confirm_token or not expected or confirm_token != expected:
+            yield {
+                "type": "final",
+                "content": "确认令牌无效或已过期，请重新发起操作。",
+            }
             return
 
         async for event in self._execute_pending(
